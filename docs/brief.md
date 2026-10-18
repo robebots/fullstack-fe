@@ -33,3 +33,11 @@ Guidelines:
 * Performance is important, excessive re-renders should be avoided.
 * Ideally the widget should be written in react/nextjs.
 ```
+
+## Revision
+
+Rob shared a second version of the brief on 2026-10-18 with one added line after the example list:
+
+```text
+Hyperliquid has probably one of the better designs, but feel free to add your own spin/improvements. Looking for clean and responsive designs.
+```
