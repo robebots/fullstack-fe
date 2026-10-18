@@ -1,15 +1,6 @@
 # Architecture
 
-Status: draft for discussion, 2026-10-18. Update this file when a decision changes.
-
-## What the feed forces
-
-The measurements are in [hyperliquid-feed.md](hyperliquid-feed.md). Four of them drive the design.
-
-1. The default `l2Book` sends 20 levels per side about every 5.4 s. A widget built on it alone changes every five seconds, which fails the liveness priority before styling even starts.
-2. `l2Book` with `fast: true` sends 5 levels every ~540 ms. `bbo` sends the top of book on blocks where it changes, p50 140 to 190 ms. Liveness has to come from these two.
-3. Book messages don't say which `nSigFigs` built them. After a precision switch the only way to tell old snapshots from new ones is to wait for the new ack.
-4. A bad subscription makes the server drop the socket within ~200 ms, with no error message. Validation has to happen before anything goes on the wire.
+Status: implemented 2026-10-18. Every claim below has a test in `e2e/` that fails if it stops being true.
 
 ## Data flow
 
@@ -17,164 +8,112 @@ The measurements are in [hyperliquid-feed.md](hyperliquid-feed.md). Four of them
 wss://api.hyperliquid.xyz/ws
         |
         v
-FeedClient       one socket, ack-gated subscriptions, reconnect, watchdog
-        |  typed messages
+Feed (src/lib/feed.ts)           one socket, ack-gated subscriptions, reconnect, watchdog
+        |  l2Book, l2Book fast, bbo
         v
-BookEngine       pure TS: compose default + fast + bbo, totals, diffs, stats
-        |  BookView (immutable; unchanged rows keep their identity)
+frames() (src/lib/book.ts)       keeps the latest of each source, yields at most once per frame, at most 20 a second
+        |  sources
         v
-FrameScheduler   at most one publish per animation frame
+streamedQuery (src/lib/queries.ts)
+  reducer: toView(sources, previous view)   merge by recency, cumulative totals, flash timestamps
+        |  BookView in the TanStack Query cache, structurally shared
+        v
+useBook(select)                  one observer per component, select picks the slice it shows
         |
         v
-BookStore        useSyncExternalStore with per-row selectors
-        |
-        v
-React            <OrderBook> lays out N slots; each <BookRow> subscribes to its own slot
+<BookRow> x 24                   re-renders only when its own level changed
 ```
 
-The feed and engine code never imports React. Both run in Vitest under Node with no DOM.
+Jotai holds client state: coin, precision, unit and connection status. TanStack Query holds the server state: one live book per coin and precision.
 
-## FeedClient
+## Feed
 
-- One WebSocket per tab. For the selected market it holds five subscriptions: `l2Book`, `l2Book` with `fast: true`, `bbo`, `trades` and `activeAssetCtx`.
-- Subscriptions are keyed the way acks echo them, as `type`, `coin`, `nSigFigs ?? null`, `mantissa ?? null` and `fast ?? false`.
-- A precision switch sends `unsubscribe(old)` then `subscribe(new)` for both book feeds. Each feed drops its `l2Book` messages until its new ack arrives. In 24 measured swaps a stale snapshot arrived before the ack 7 times and never after it.
-- Routing goes by `channel`, then `data.coin`, then `data.fast` for the two book feeds. Messages for the wrong coin get dropped, which handles coin switches without extra state.
-- The API accepts `nSigFigs` of 2 to 5 or null, and `mantissa` of 2 or 5 only alongside `nSigFigs: 5`. The settings type only allows valid pairs, and the client checks again before sending.
-- On a drop, the client reconnects with exponential backoff and jitter, from 250 ms up to 5 s. It resubscribes everything and replaces state with the first snapshot. The last book stays on screen, dimmed, under a reconnecting badge.
-- If the server closes the socket within a second of a subscribe twice in a row, the client stops retrying that set and shows an error. Otherwise one bad subscription turns into a reconnect loop.
-- The fast book should arrive every ~0.5 s. With no book message for 3 s the widget shows a stale state, and at 10 s the client forces a reconnect. A ping every 30 s covers the server's 60 s idle rule.
-- `requestAnimationFrame` pauses in background tabs, so rendering pauses with it. The socket stays open, so a returning tab is current on its first frame.
+- One WebSocket per tab. A market uses three subscriptions: the 20-level `l2Book`, the 5-level `l2Book` with `fast: true`, and `bbo`.
+- Entries are keyed by channel, coin and the `fast` flag, the same fields the messages carry. Subscribing a new precision on the same key sends `unsubscribe(old)` then `subscribe(new)`.
+- An entry drops messages until the server acks it. Book messages don't carry `nSigFigs`, and in 24 measured swaps a stale snapshot arrived before the ack 7 times and never after it.
+- The socket reconnects with backoff from 250 ms to 5 s and resubscribes everything. A watchdog closes the socket after 10 s of silence, which covers sleep and network changes that never fire `close`.
+- The UI only offers valid `nSigFigs` and `mantissa` pairs. The server drops the whole socket on a bad one.
 
-## BookEngine
+## Book engine
 
-Pure functions, unit-tested against recorded fixtures.
+`toView` is pure. Each side merges the three sources newest first. The newest source owns every price it covers, and an older source only adds levels beyond that edge. If `bbo` says the best bid fell from 100 to 98, the fast book's 100 and 99 levels drop out.
 
-### Compose
+`bbo` is never grouped, so it only joins the rows at full precision. It always drives the spread and mid, so the true spread stays visible when the book is grouped into $1,000 buckets.
 
-Each side merges three sources by recency. The source with the newest `time` owns every price it covers, and an older source only adds levels beyond that range.
+Each row carries price, size, cumulative size, cumulative notional and `flashAt`. `flashAt` changes only when that price's size changed since the last frame, or when a new price appears inside the previous range. Unchanged rows come out deep-equal, and TanStack Query's structural sharing keeps their references, so a row's `select` returns the same object and React skips it.
 
-```text
-bids, newest source first:   bbo (1 level) -> fast (5) -> default (20)
-take a level from an older source only if its price is below every bid already taken
-asks mirror this with "above"
-```
+## Scheduling
 
-The same rule handles consumed liquidity. Say `bbo` reports the best bid dropped from 100 to 98. The fast book's 100 and 99 levels sit above 98, so they fall away.
+`frames()` waits for a message, then for the next animation frame, then yields a copy of the latest sources. Messages that arrive in between overwrite the previous ones. The feed is lossy by design, because only the latest book matters.
 
-`bbo` is never grouped. It feeds the rows only when the selected tick equals the full-precision tick, which is true today for both coins at `nSigFigs: 5`. At coarser ticks it drives the spread row alone. That keeps the real spread on screen when the book is grouped into $1,000 buckets and the grouped spread can't read under one bucket.
+Publishes are at least 50 ms apart. Most Hyperliquid updates arrive further apart than that: the fast book every ~540 ms and bbo every ~170 ms at p50. The cap matters during bursts. At 1,000 msg/s it cut main-thread load from 78% to 34% at 1x CPU.
 
-### Derived values
-
-Per row: price, size, order count `n`, cumulative size, cumulative notional, a depth ratio for the bar, size against the largest visible level, and average order size `sz / n`.
-
-Per book: best bid and ask, mid, spread in price and bps, bid/ask imbalance over visible depth, mid direction since the last frame, and update age.
-
-### Diff
-
-The engine compares every price with the previous frame and tags rows `up`, `down` or `new`. Each tag carries a counter that only moves on a new change event, and rows fire a flash once per counter value.
-
-### Numbers
-
-Sizes accumulate as integers scaled by `szDecimals` (BTC 5, ETH 4), so totals never show float drift. Formatting uses one cached `Intl.NumberFormat` per decimals and style pair.
-
-## Scheduling and the store
-
-- Messages reach the engine as they arrive. The scheduler publishes the latest `BookView` once per animation frame. The feed averages 7 to 9 messages a second today with bursts 20 ms apart, and no burst renders more than once per frame.
-- Rows are keyed by slot, meaning distance from the touch, not by price. The DOM never reorders. When the touch moves, prices shift through fixed rows and only text and transforms change.
-- The engine reuses row objects that didn't change. `useSyncExternalStore` hands React the same reference and the row skips its render.
-- Settings live in the URL. `?coin=ETH&tick=1` opens the demo in that state, which makes the shared link more useful.
+`notifyManager.setScheduler(queueMicrotask)` makes TanStack Query notify inside the same frame, so a publish reaches the DOM before that frame paints. Hidden tabs never run the animation frame, so nothing queues up while hidden.
 
 ## Rendering
 
-- Rows have a fixed height and columns a fixed width, with `font-variant-numeric: tabular-nums`. A digit change never shifts anything else.
-- The panel height sets the rows per side through a `ResizeObserver`, up to 20.
-- Depth bars are absolutely positioned and sized with `transform: scaleX(ratio)` from the left edge. The compositor animates them with no layout work.
-- Bar transitions last as long as the recent gap between book updates, clamped to 80 to 300 ms. In a slow market bars glide from one snapshot to the next, and in a fast one they keep up.
-- The bar scale, the largest cumulative size on screen, eases toward its new value. One big order appearing at depth doesn't jolt every bar at once.
-- Flashes run on a per-row overlay through the Web Animations API, started from a layout effect when the row's change counter moves. They hold no React state, so a flash costs no render. Their strength scales with the relative size change, and `prefers-reduced-motion` turns them off.
-- The best bid and ask rows get a slightly stronger tint so the touch reads at a glance. The header shows the mid with an up or down cue from `bbo`.
+- Rows are keyed by slot, meaning distance from the touch. The DOM never reorders; text and one custom property change.
+- Depth bars use `scale: calc(var(--total) / var(--max))`. Each row sets `--total`. The container sets `--max`, rounded up to a 1, 2 or 5 step, so it rarely changes and never re-renders rows when it does. Bars ease over 200 ms on the compositor.
+- Flashes animate the opacity of an overlay through the Web Animations API from a layout effect, with no React state. The previous flash on a row is cancelled first. Overlapping flashes made Chrome refuse to composite them (`TargetHasIncompatibleAnimations`).
+- Rows use `contain: content`, fixed heights and tabular numerals.
+- `prefers-reduced-motion` turns off bar transitions and hides flashes.
 
-## Information features
+## Proof
 
-Must have:
+`next build --profile` keeps React's Profiler on in production. Every row and the whole book sit in a `<Profiler>` that writes a `performance.measure` only in that build (`NEXT_PUBLIC_PROFILE=1`). Normal builds compile the call away.
 
-1. Cumulative depth bars, as in the example.
-2. Spread row with the spread in price and percent, taken from the real touch.
-3. Flashes on size changes, green up and red down, and a fade-in for new levels.
-4. Coin dropdown for BTC and ETH, plus a precision dropdown. Options show the tick computed from the live mid (BTC today offers 1, 2, 5, 10, 100 and 1,000) with the nSigFigs value beside each. Settings that produce the same tick collapse into one option.
-5. Coin and USD toggle for size and total.
-6. Connection state with a live dot, update age, and stale and reconnecting states.
+`e2e/book.spec.ts` drives the UI through `page.routeWebSocket` with a scripted Hyperliquid server. It covers rendering, merge order, ack gating on precision switches, tick labels, coin switching, USD mode and reconnects.
 
-Should have:
+`e2e/perf.spec.ts` covers the claims:
 
-7. Hovering a level highlights every row between it and the touch. A tooltip shows total size, total notional, average fill price and slippage from mid in bps, which is the cost of a market order that sweeps to that level.
-8. A brighter inner bar for the level's own size, so walls stand out inside the cumulative shape.
-9. Trade prints marked on the level they hit, colored by side and fading over a second. Grouped books map prints the same way grouping does, bids down and asks up.
-10. Imbalance meter for bid size against ask size in visible depth.
-11. Trades tab fed by `trades`, matching the example's tabs.
+| Claim | How it's measured | Gate |
+|---|---|---|
+| Never more than one commit per frame, never more than 20 a second | In-page feed at 1,000 msg/s, three 3 s trials, Profiler commits against `requestAnimationFrame` count | every trial: commits ≤ frames and ≤ 61 |
+| Rendering is cheap | Profiler `actualDuration` per commit | median trial p95 < 4 ms per 1x of CPU |
+| Smooth at 1x under a 100x burst | `requestAnimationFrame` intervals, plus Long Animation Frames for the report | median trial over 55 fps, p95 frame < 20 ms |
+| No freeze at 4x CPU | CDP `Emulation.setCPUThrottlingRate` | median trial's longest frame < 250 ms |
+| One level change touches only its rows | Profiler measures for one changed level | exactly one commit, rows 9 to 11 only |
+| Messages reach the DOM within a frame | Socket arrival time against MutationObserver time | p95 < 25 ms |
+| Controls stay responsive | Event Timing during a precision switch | slowest event < 100 ms |
+| No leaks | CDP heap after GC, before and after a 15 s stream | growth < 1 MB |
 
-Could have:
+The stress feed runs inside the page because Playwright's socket mock costs main-thread time per message. With the mock, it was the bottleneck at 4x, not the app. Timing gates use the median of three trials because the VM shares its CPU (about 3% steal) and one stall in one trial shouldn't fail the suite. The structural gates hold for every trial.
 
-12. Average order size from `n`. A big level held by one order means something different from the same size spread across fifty orders.
-13. Market header from `activeAssetCtx` with mark, oracle, funding, 24h change and open interest.
-14. A faint divider where fast data ends at level 5. Deeper levels can be up to ~5 s old, and their age shows on hover.
-15. Debug overlay at `?debug=1` with messages per second per feed, renders per second and frame time.
+## Measured, 2026-10-18
 
-## Proving performance
+Headless Chromium 156 through Playwright 1.64, profiling build, on a shared 8-core AMD EPYC 9354P VM with no GPU, so Chromium rasterizes and composites on the CPU.
 
-- React Profiler `onRender` counts feed the debug overlay. The target is zero renders for any row whose level didn't change.
-- A recorder script saves real sessions as NDJSON. A `ReplaySocket` with the same interface as the live client plays them back at 1× or 10×. Tests get deterministic runs, and `?feed=replay&speed=10` becomes a stress demo of a fast market.
-- The README gets numbers from a Chrome performance trace and a short GIF.
+| Test | Result |
+|---|---|
+| 1,000 msg/s at 1x CPU, 9 runs | Seven runs held 60 fps with p95 frame 16.7 to 16.8 ms, render p95 1.1 to 2.1 ms and no frame over 50 ms. Two lost frames to host contention: one 144 ms stall (57.6 fps, render p95 3.5 ms), and one run at 51 fps with p95 frame 33 ms and render p95 5.2 ms. That run is why timing gates use the median of three trials. Commits stayed near 15 a second in every run. |
+| 1,000 msg/s at 4x CPU, 9 runs | 17 to 26 fps, longest frame 75 to 109 ms, render p95 5.4 to 10.6 ms |
+| One level change | 1 commit, rows `bids-9`, `bids-10`, `bids-11` |
+| Message to DOM | p50 8.8 to 10.4 ms, p95 17.2 to 18.8 ms, max 20.3 ms |
+| Precision switch | slowest input event 24 to 48 ms |
+| Heap over 15 s | +119 to +474 KB after GC |
+
+At the real feed rate the main thread runs 22 to 33% busy at 1x. About 4 points of that is the test's own feed generator. At 4x it runs 85 to 93% busy at 25 to 34 fps. With every animation off, 4x still runs 64% busy at 38 fps. Most of the cost is the work each update needs anyway: React, style, layout and paint, all on the CPU because the VM has no GPU.
+
+## Decisions
+
+- TanStack Query owns the live book because it is server state. `streamedQuery` ties the socket subscription to the query's lifetime: when the last observer leaves, the abort signal unsubscribes. Switching back to a market starts a fresh stream instead of showing a stale cached book.
+- `select` with structural sharing gives row-level subscriptions without a hand-written store.
+- Jotai holds the four pieces of client state. `statusAtom` subscribes to the socket in `onMount`.
+- shadcn/ui on Base UI for the coin and precision selects and the unit toggle. Nothing in the hot path uses them.
+- React Compiler is on, so no manual `memo` or `useCallback`.
+- Colors come from the example's palette, which matches Tailwind v4 neutrals. Prices stay white like the example, and flashes are neutral so an ask row never flashes green.
 
 ## Skipped on purpose
 
-- Web Worker. Payloads run ~1.6 KB at under 10 a second, so parsing them costs almost nothing on the main thread.
-- Canvas rendering. Forty rows of DOM text stay cheap, selectable and readable by screen readers.
-- Virtualization. There are never more than 40 rows.
-- State libraries. The store is about 40 lines on top of `useSyncExternalStore`.
-- REST polling for deep levels. It would refresh levels 6 to 20 every block, but the brief asks for the websocket. It stays a fallback if 5 s old depth looks wrong in practice.
+- Canvas rendering. DOM rows hold 60 fps at 1x and stay selectable and accessible.
+- A Web Worker. Messages are about 1.6 KB. Most main-thread time goes to React, style and layout, and none of that can move to a worker.
+- Virtualization. There are never more than 24 rows.
+- URL state, persistence and a trades tab. The brief doesn't ask for them.
 
-## Stack
+## Prior art
 
-- Next.js 16 App Router, React 19, TypeScript and Tailwind v4. Use the versions `create-next-app` pins. TypeScript 7 is current on npm, so check Next's support before moving to it.
-- A static page. The widget is a client component that renders skeleton rows on the server and connects on mount.
-- No animation or charting library. CSS transitions and the Web Animations API cover the motion.
-- Vitest for the client and engine, Playwright for a smoke test.
-- Vercel, deploying from `main`.
-
-## Layout
-
-```text
-src/
-  app/              page, layout, globals.css
-  feed/             client.ts, subscriptions.ts, types.ts, replay.ts
-  book/             compose.ts, derive.ts, diff.ts, precision.ts, format.ts
-  store/            book-store.ts, scheduler.ts, settings.ts
-  ui/               OrderBook, BookRow, SpreadRow, PrecisionMenu, CoinSelect,
-                    UnitToggle, TradesTab, StatusDot, DebugOverlay
-scripts/probe/      feed measurements
-scripts/record.mjs  NDJSON recorder for fixtures
-test/               Vitest suites and fixtures
-e2e/                Playwright
-```
-
-## Three days
-
-Day 1. Scaffold, deploy an empty page to Vercel, FeedClient with ack gating, compose with tests, rows and bars on screen, coin and precision dropdowns. A shareable link works by the end of the day.
-
-Day 2. Flashes, adaptive transitions, spread and mid, unit toggle, hover sweep tooltip, trades tab, reconnect and stale states.
-
-Day 3. Inner size bars, trade prints on levels, imbalance meter, debug overlay, replay and stress mode, Playwright smoke test, performance trace, README with a GIF and design notes, final deploy.
-
-## Decisions to confirm
-
-| Decision | Default |
-|---|---|
-| Layer `fast` and `bbo` over the default book | Yes. The default feed alone updates every ~5 s. |
-| Price text color | White, as in the example |
-| Bar anchor | Left edge, as in the example |
-| Rows per side | Fill the panel height, up to 20 |
-| Precision labels | Tick size, with nSigFigs beside it |
-| Deep-level freshness | Divider at level 5 and age on hover, no REST polling |
-| Demo URL | A Vercel project under Rob's account |
+- TkDodo, [Using WebSockets with React Query](https://tkdodo.eu/blog/using-web-sockets-with-react-query): push with `setQueryData` for frequent small updates, and set `staleTime: Infinity` when the socket delivers everything.
+- TanStack Query [discussion #9065](https://github.com/TanStack/query/discussions/9065): control when the stream yields instead of writing every chunk.
+- dYdX v4 web client ([orderbook.ts](https://github.com/dydxprotocol/v4-web/blob/main/src/bonsai/websocket/orderbook.ts)): merges deltas outside React and publishes at most every 500 ms. It draws on canvas.
+- Serum DEX UI ([Orderbook.jsx](https://github.com/project-serum/serum-dex-ui/blob/master/src/components/Orderbook.jsx)): samples every 250 ms, memoized rows, flashes toggled through refs.
+- Chrome, [Long Animation Frames](https://developer.chrome.com/docs/web-platform/long-animation-frames): suggests gating on LoAF in CI.
