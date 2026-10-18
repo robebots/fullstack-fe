@@ -27,6 +27,8 @@ Next.js 16 App Router with the React Compiler, TanStack Query for server state, 
 - No comments in code.
 - YAGNI means no bloat and no dumb decisions. Everything in the mock ships, built with the least code that does it right.
 - The socket and the book engine stay out of React, in `src/lib`. Components read through `useBook(select)`.
+- `OrderBook` is the widget and owns its providers. Pages only place it. State that differs per widget lives in its Jotai store.
+- Density follows the pointer (`pointer-fine:`), not the viewport width. Phones match the mock.
 - A row renders only when its own level changed. `e2e/perf.spec.ts` checks this, so keep it green.
 - Validate every subscription before sending it. The server drops the socket on bad params and sends no error.
 - Data snaps; only feedback animates. Animate `opacity` on overlays, cancel the running animation before starting another, and skip animation under `prefers-reduced-motion`.

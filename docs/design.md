@@ -59,20 +59,34 @@ At the screenshot's scale the row pitch is about 36.5 px, bars are 28 px tall an
 | Footer | 56 px, 16 px text. Precision with a chevron on the left, USD and coin as plain text on the right, active one white. |
 | Type | Inter. It matched the mock's text proportions within 2%, closer than nine other fonts we tested. |
 
-The live widget sits within 1 to 5 px of these numbers, measured from a 1x screenshot at 418 x 1222.
+The fixed parts of the widget sit within 1 to 5 px of these numbers, measured from a 1x screenshot at 418 x 1222. Rows fit the height they get, so that frame shows 11 rows a side at a 38 px pitch. The mock's footer is cut off at the bottom edge, so its screen was taller than the image.
 
-## Desktop, 1024 px and up
+## Desktop: mouse and trackpad
 
-Mobile follows the mock and comes first. From 1024 px up, the same components switch to Hyperliquid's desktop book, measured live at 1600 x 1000 and 1280 x 800:
+Mobile follows the mock and comes first. On a fine pointer (`pointer-fine:`), the same components switch to Hyperliquid's desktop book, measured live at 1600 x 1000 and 1280 x 800:
 
 | Element | Hyperliquid | Ours |
 |---|---|---|
-| Panel | 296 x 674 px column | 296 px wide, 673 px tall |
+| Panel | 296 x 674 px column | 296 px wide. The demo gives each widget 760 px with its header. |
 | Tabs | 42 px row, 12 px labels, full-width underline | same |
 | Controls | precision and unit in a 31 px row under the tabs | same row, moved with CSS `order` |
 | Column header | 12 px grey, Size and Total right-aligned | same |
-| Rows | 23 px, columns 20% / 40% / 40%, 10 px side padding, full-height bars | same |
+| Rows | 23 px, columns 20% / 40% / 40%, 10 px side padding, full-height bars | same, with the pitch fitted to the height in whole pixels |
 | Spread | centered "Spread 1 0.001%" in a 23 px row | same |
-| Header | market bar | the mock's header card, compacted to 56 px |
+| Header | market bar | the mock's header card, compacted to 56 px, with the last price and a market chevron |
 
 The colors stay the mock's on desktop too. The section title hides on desktop because Hyperliquid's panel has none.
+
+## Added to the mock
+
+These carry the colors the mock already uses.
+
+| Element | Look |
+|---|---|
+| Wall layer | inside each depth bar, the level's own size in the side color at 20% |
+| Imbalance line | 2 px under the spread row, bid share in the bid color at 80% over the ask color at 60% |
+| Flash | the side color, peak opacity 0.08 to 0.35 by size change |
+| Tapped level | white at 15% over the row, levels the sweep eats at 7% |
+| Fill price | replaces the footer controls while a level is tapped: side in its color, size and average in white, the rest grey, and a close button |
+| Last price | in the header next to the leverage chip, green after a market buy and red after a market sell |
+| Market picker | the pair name and the menu icon both open it. The chevron only shows on desktop, since the mock has none. |
