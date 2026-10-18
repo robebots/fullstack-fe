@@ -1,6 +1,6 @@
 # fullstack-fe
 
-Live order book and trades tape for BTC and ETH on Hyperliquid's websocket feed, built for Fullstack's frontend take-home.
+Live order book and trades tape for BTC and ETH on Hyperliquid's websocket feed, built for Fullstack's frontend take-home. Mobile follows Fullstack's mock; desktop follows Hyperliquid's layout.
 
 Next.js 16, React 19 with the React Compiler, TanStack Query for the live book, Jotai for client state, shadcn/ui on Base UI, Tailwind v4, Playwright.
 
@@ -18,7 +18,7 @@ pnpm exec playwright install chromium
 pnpm test
 ```
 
-`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 15 tests. Nine check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression.
+`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 15 tests on a Pixel 7 profile and again on desktop Chrome. Nine check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression.
 
 ## What the tests prove
 

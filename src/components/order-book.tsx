@@ -31,16 +31,20 @@ const FLASH: PropertyIndexedKeyframes = { opacity: [0, 0.3, 0], offset: [0, 0.2,
 
 const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
-const grid = "grid grid-cols-[144px_1fr_auto] items-center pr-4 pl-5"
+const grid = "grid grid-cols-[144px_1fr_auto] items-center pr-4 pl-5 lg:grid-cols-[20%_40%_40%] lg:px-2.5"
 
-const row = cn(grid, "relative h-[36.5px] text-base contain-content")
+const height = "h-[36.5px] lg:h-[23px]"
 
-const bar = "absolute inset-x-0 inset-y-1 origin-left"
+const row = cn(grid, height, "relative text-base contain-content lg:text-xs")
 
-const stacked = "[grid-area:1/1] data-hidden:invisible"
+const size = "relative lg:text-right"
+
+const bar = "absolute inset-x-0 inset-y-1 origin-left lg:inset-y-0"
+
+const stacked = "flex flex-col [grid-area:1/1] data-hidden:invisible"
 
 const tab =
-  "h-full flex-none justify-self-center rounded-none px-[9px] text-[17px] font-normal after:bottom-0 after:h-[3px] after:bg-brand"
+  "h-full flex-none justify-self-center rounded-none px-[9px] text-[17px] font-normal after:bottom-0 after:h-[3px] after:bg-brand lg:justify-self-stretch lg:px-0 lg:text-xs lg:after:h-0.5"
 
 const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
 
@@ -63,17 +67,17 @@ export function OrderBook() {
   return (
     <>
       <Header />
-      <h2 className="pt-3 pb-[13px] text-[22px] leading-7 text-[#ababab]">Orders</h2>
+      <h2 className="pt-3 pb-[13px] text-[22px] leading-7 text-[#ababab] lg:hidden">Orders</h2>
       <section
         aria-label="Order book"
         data-testid="status"
         data-status={status}
-        className="overflow-hidden rounded-[10px] border bg-card tabular-nums transition-opacity data-[status=connecting]:opacity-60"
+        className="overflow-hidden rounded-[10px] border bg-card tabular-nums transition-opacity data-[status=connecting]:opacity-60 lg:mt-1 lg:rounded-md"
       >
         <Tabs defaultValue="orders" className="gap-0">
           <TabsList
             variant="line"
-            className="grid w-full grid-cols-2 rounded-none border-b border-muted p-0 pr-5 group-data-horizontal/tabs:h-[52px]"
+            className="grid w-full grid-cols-2 rounded-none border-b border-muted p-0 pr-5 group-data-horizontal/tabs:h-[52px] lg:pr-0 lg:group-data-horizontal/tabs:h-[42px]"
           >
             <TabsTrigger value="orders" className={tab}>
               Orders
@@ -116,19 +120,19 @@ function Header() {
   const [coin, setCoin] = useAtom(coinAtom)
   const market = MARKETS[coin]
   return (
-    <header className="flex h-20 items-center gap-3.5 rounded-[10px] border bg-card pr-[26px] pl-[22px]">
+    <header className="flex h-20 items-center gap-3.5 rounded-[10px] border bg-card pr-[26px] pl-[22px] lg:h-14 lg:gap-2.5 lg:rounded-md lg:px-3">
       <span
         aria-hidden
-        className="grid size-9 rotate-[14deg] place-items-center rounded-full text-[22px] font-semibold text-white"
+        className="grid size-9 rotate-[14deg] place-items-center rounded-full text-[22px] font-semibold text-white lg:size-7 lg:text-base"
         style={{ backgroundColor: market.color }}
       >
         {market.glyph}
       </span>
       <div className="flex-1 leading-none">
-        <div className="text-[22px]">{coin}-USD</div>
-        <div className="mt-2 text-[15px] text-muted-foreground">Perpetuals</div>
+        <div className="text-[22px] lg:text-base">{coin}-USD</div>
+        <div className="mt-2 text-[15px] text-muted-foreground lg:mt-1 lg:text-xs">Perpetuals</div>
       </div>
-      <span className="grid h-[35px] place-items-center rounded-lg bg-muted px-[11px] text-base">
+      <span className="grid h-[35px] place-items-center rounded-lg bg-muted px-[11px] text-base lg:h-7 lg:rounded-md lg:px-2 lg:text-xs">
         {market.maxLeverage}×
       </span>
       <Select
@@ -137,7 +141,7 @@ function Header() {
         onValueChange={(value) => value && setCoin(value)}
       >
         <SelectTrigger aria-label="Market" className={cn(plain, "ml-[5px] text-muted-foreground *:last:hidden")}>
-          <Menu className="size-5" />
+          <Menu className="size-5 lg:size-4" />
         </SelectTrigger>
         <SelectContent align="end" alignItemWithTrigger={false}>
           {COINS.map((value) => (
@@ -155,9 +159,9 @@ function Columns({ last }: { last: "Total" | "Time" }) {
   const coin = useAtomValue(coinAtom)
   const unit = useAtomValue(unitAtom) === "usd" ? "USD" : coin
   return (
-    <div className={cn(grid, "h-14 text-[13px] text-muted-foreground")}>
+    <div className={cn(grid, "h-14 text-[13px] text-muted-foreground lg:h-[23px] lg:text-xs")}>
       <span>Price</span>
-      <span>Size ({unit})</span>
+      <span className="lg:text-right">Size ({unit})</span>
       <span className="text-right">{last === "Total" ? `Total (${unit})` : "Time"}</span>
     </div>
   )
@@ -200,7 +204,7 @@ function BookRow({ side, index, decimals }: { side: "asks" | "bids"; index: numb
     animation.current?.cancel()
     animation.current = flash.current.animate(FLASH, 800)
   }, [flashAt])
-  if (!level) return <div className="h-[36.5px] contain-strict" />
+  if (!level) return <div className={cn(height, "contain-strict")} />
   return (
     <div className={row} style={{ "--total": level.total } as CSSProperties}>
       <div
@@ -208,9 +212,7 @@ function BookRow({ side, index, decimals }: { side: "asks" | "bids"; index: numb
       />
       <div ref={flash} className={cn(bar, "opacity-0", side === "asks" ? "bg-ask" : "bg-bid")} />
       <span className="relative">{formatNumber(level.px, decimals)}</span>
-      <span className="relative">
-        {usd ? formatNumber(level.px * level.sz, 0) : formatNumber(level.sz, szDecimals)}
-      </span>
+      <span className={size}>{usd ? formatNumber(level.px * level.sz, 0) : formatNumber(level.sz, szDecimals)}</span>
       <span className="relative text-right">
         {usd ? formatNumber(level.totalUsd, 0) : formatNumber(level.total, szDecimals)}
       </span>
@@ -222,7 +224,13 @@ function Spread() {
   const touch = useBook((view) => (view.bid && view.ask ? { bid: view.bid, ask: view.ask } : undefined))
   const spread = touch ? touch.ask - touch.bid : undefined
   return (
-    <div data-testid="spread" className={cn(grid, "my-[3px] h-[35px] bg-muted text-[15px] text-muted-foreground")}>
+    <div
+      data-testid="spread"
+      className={cn(
+        grid,
+        "my-[3px] h-[35px] bg-muted text-[15px] text-muted-foreground lg:my-0 lg:flex lg:h-[23px] lg:justify-center lg:gap-8 lg:text-xs",
+      )}
+    >
       <span>Spread</span>
       <span className="text-foreground">{spread === undefined ? "" : formatNumber(spread, 0, 6)}</span>
       <span className="text-right">
@@ -246,10 +254,10 @@ function Footer() {
   }))
   const unitClass = cn(
     plain,
-    "min-w-0 text-base font-normal text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground hover:bg-transparent",
+    "min-w-0 text-base font-normal text-muted-foreground lg:text-xs aria-pressed:bg-transparent aria-pressed:text-foreground hover:bg-transparent",
   )
   return (
-    <footer className="flex h-14 items-center justify-between pr-5 pl-5">
+    <footer className="flex h-14 items-center justify-between px-5 lg:order-first lg:h-[31px] lg:px-2.5">
       <Select
         items={options}
         value={precision.id}
@@ -257,11 +265,14 @@ function Footer() {
       >
         <SelectTrigger
           aria-label="Precision"
-          className={cn(plain, "gap-2 text-base text-muted-foreground [&>svg]:rotate-180")}
+          className={cn(
+            plain,
+            "gap-2 text-base text-muted-foreground lg:text-xs [&>svg]:rotate-180 lg:[&>svg]:rotate-0",
+          )}
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent side="top" align="start" alignItemWithTrigger={false}>
+        <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               <span>{option.label}</span>
@@ -310,9 +321,7 @@ const TapeRow = memo(function TapeRow({ print }: { print: Print }) {
         <div className={cn(bar, "animate-print opacity-0 motion-reduce:hidden", print.buy ? "bg-bid" : "bg-ask")} />
       )}
       <span className={cn("relative", print.buy ? "text-bid" : "text-ask")}>{formatNumber(print.px, decimals)}</span>
-      <span className="relative">
-        {usd ? formatNumber(print.px * print.sz, 0) : formatNumber(print.sz, szDecimals)}
-      </span>
+      <span className={size}>{usd ? formatNumber(print.px * print.sz, 0) : formatNumber(print.sz, szDecimals)}</span>
       <span className="relative text-right text-muted-foreground">{formatTime(print.time)}</span>
     </div>
   )

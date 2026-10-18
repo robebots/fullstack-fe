@@ -73,6 +73,7 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 ## Rendering
 
 - The layout is measured off the mock at 1x: 80 px header card, 52 px tabs with a 3 px underline under the label, 56 px column header, 36.5 px rows with 28 px bars, a 35 px spread row and a 56 px footer. Columns sit at 20 px, 164 px and 16 px from the right. Inter matched the mock's text proportions within 2%, closer than nine other fonts we tested. [design.md](design.md) has the details.
+- Mobile is the priority and follows the mock. From 1024 px up, Tailwind `lg:` variants switch the same components to Hyperliquid's desktop density: 23 px rows, 12 px type, controls on top. [design.md](design.md) lists the numbers.
 
 - Depth bars use `scale: calc(var(--total) / var(--max))`. Each row sets `--total`. The container sets `--max`, rounded up to a 1, 2 or 5 step, so it rarely changes and never re-renders rows when it does.
 - Book flashes run through the Web Animations API from a layout effect, with no React state. Tape pulses are a CSS keyframe on mount.
@@ -83,7 +84,7 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 
 `next build --profile` keeps React's Profiler on in production. The book, each book row and the tape sit in `<Profiler>`s that write `performance.measure` entries only in that build (`NEXT_PUBLIC_PROFILE=1`). Normal builds compile the call away.
 
-`e2e/book.spec.ts` drives the UI through `page.routeWebSocket` with a scripted Hyperliquid server that answers subscriptions and depth requests. It covers depth, merge order, precision switches, tick labels, coin switching, USD mode, the tape, hidden-tab streaming and reconnects.
+Every test runs twice, once on a Pixel 7 profile and once on desktop Chrome. `e2e/book.spec.ts` drives the UI through `page.routeWebSocket` with a scripted Hyperliquid server that answers subscriptions and depth requests. It covers depth, merge order, precision switches, tick labels, coin switching, USD mode, the tape, hidden-tab streaming and reconnects.
 
 `e2e/perf.spec.ts` covers the claims:
 
