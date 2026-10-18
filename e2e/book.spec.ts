@@ -218,6 +218,7 @@ test("the menu shows one side, both sides or both side by side", async ({ page }
   const left = await page.getByTestId("bids").boundingBox()
   const right = await page.getByTestId("asks").boundingBox()
   expect(right?.x ?? 0).toBeGreaterThan(left?.x ?? 0)
+  expect((right?.x ?? 0) - ((left?.x ?? 0) + (left?.width ?? 0))).toBeCloseTo(2, 1)
 })
 
 test("stacked and large panels show the book and trades together", async ({ page, isMobile }) => {

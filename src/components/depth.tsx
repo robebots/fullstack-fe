@@ -114,7 +114,7 @@ function Split({ rows }: { rows: number }) {
   useFitRows(fit)
   return (
     <>
-      <div className="grid h-6 shrink-0 grid-cols-2 items-center text-xs text-muted-foreground">
+      <div className="grid h-6 shrink-0 grid-cols-2 items-center gap-x-0.5 text-xs text-muted-foreground">
         <span className="grid grid-cols-2 px-2.5">
           <span>Total ({unit})</span>
           <span className="text-right">Price</span>
@@ -124,7 +124,7 @@ function Split({ rows }: { rows: number }) {
           <span className="text-right">Total ({unit})</span>
         </span>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-x-0.5">
         <div
           ref={fit}
           data-testid="bids"
