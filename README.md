@@ -69,7 +69,7 @@ pnpm exec playwright install chromium
 pnpm test
 ```
 
-`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 20 tests on a Pixel 7 profile and again on desktop Chrome. Fourteen check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression. The two-book dashboard test runs on desktop only.
+`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 21 tests on a Pixel 7 profile and again on desktop Chrome. Fifteen check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression. The two-book dashboard test runs on desktop only.
 
 ## What the tests prove
 

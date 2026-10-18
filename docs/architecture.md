@@ -35,7 +35,7 @@ useBook(select) / useTrades(select)   each component subscribes to the slice it 
 - Every instance uses one module-level `QueryClient`, so two widgets on the same coin and precision read one stream.
 - An `IntersectionObserver` unmounts the widget's content when it leaves the viewport or gets hidden. The queries lose their last observer, TanStack Query aborts their signal, and `paced()` unsubscribes in its `finally`. Showing the widget again resubscribes.
 - A tap on a level sets the selection and calls `onPriceSelect` with `{ coin, side, price }`. An ask maps to buy and a bid to sell, the way a click on a venue's book fills its order form.
-- `/embed/[market]` renders one widget full page for iframes. The home page renders the mock on phones and, on a wide screen with a mouse, a BTC book and an ETH book wired to a demo ticket.
+- `/embed/[market]` renders one widget full page for iframes. The home page renders the mock on touch screens of any width and, on a wide screen with a mouse, a BTC book and an ETH book wired to a demo ticket.
 
 ## Feed
 
@@ -101,7 +101,7 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 
 `next build --profile` keeps React's Profiler on in production. The book, each book row and the tape sit in `<Profiler>`s that write `performance.measure` entries only in that build (`NEXT_PUBLIC_PROFILE=1`). Normal builds compile the call away.
 
-Every test runs twice, once on a Pixel 7 profile and once on desktop Chrome. `e2e/book.spec.ts` drives the UI through `page.routeWebSocket` with a scripted Hyperliquid server that answers subscriptions and depth requests. It covers depth, merge order, precision switches, tick labels, coin switching, USD mode, the tape, hidden-tab streaming, reconnects, the fill price on tap, the imbalance line, rows fitting the height, pausing while hidden, and two books on one socket feeding the ticket.
+Every test runs twice, once on a Pixel 7 profile and once on desktop Chrome. `e2e/book.spec.ts` drives the UI through `page.routeWebSocket` with a scripted Hyperliquid server that answers subscriptions and depth requests. It covers depth, merge order, precision switches, tick labels, coin switching, USD mode, the tape, hidden-tab streaming, reconnects, the fill price on tap, the imbalance line, rows fitting the height, pausing while hidden, two books on one socket feeding the ticket, and the mock on a wide touch screen.
 
 `e2e/perf.spec.ts` covers the claims:
 

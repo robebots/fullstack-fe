@@ -234,3 +234,13 @@ test("desktop dashboard runs two books on one socket and wires a tap to the tick
   await expect(page.getByTestId("ticket-market")).toHaveText("BTC-USD")
   await expect(page.getByTestId("ticket-price")).toHaveText("81,002")
 })
+
+test.describe("on a wide touch screen", () => {
+  test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true, isMobile: true })
+
+  test("shows the mock instead of the desktop dashboard", async ({ page }) => {
+    await openBook(page, undefined, "/")
+    await expect(page.locator("[data-widget]:not([data-paused=true])")).toHaveCount(1)
+    await expect(page.getByRole("complementary", { name: "Order ticket" })).toBeHidden()
+  })
+})
