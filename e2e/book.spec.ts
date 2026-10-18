@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { cells, ladder, openBook, sizes, waitForSubscriptions } from "./feed"
+import { cells, ladder, openBook, rows, sizes, waitForSubscriptions } from "./feed"
 
 const bids = ladder(81_000, -1, sizes(20))
 const asks = ladder(81_001, 1, sizes(20))
@@ -18,7 +18,7 @@ test("renders levels with cumulative totals and spread from live depth", async (
   feed.book("BTC", bids, asks)
   await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
   await expect(cells(page, "bids", 2)).toHaveText(["80,998", "3.00000", "6.00000"])
-  await expect(cells(page, "asks", 11)).toHaveText(["81,012", "12.00000", "78.00000"])
+  await expect(cells(page, "asks", 5)).toHaveText(["81,006", "6.00000", "21.00000"])
   await expect(page.getByTestId("spread")).toHaveText(/Spread\s*1\s*0\.001%/)
   await expect(page.getByTestId("status")).toHaveAttribute("data-status", "live")
   expect(feed.requests[0]).toEqual({ type: "l2Book", coin: "BTC" })
@@ -91,7 +91,7 @@ test("precision options show live tick sizes and collapse duplicates", async ({ 
 test("switching coin moves every subscription and formats for the new market", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
-  await page.getByLabel("Market").click()
+  await page.getByLabel("Market", { exact: true }).click()
   await page.getByRole("option", { name: "ETH-USD" }).click()
   await waitForSubscriptions(feed, 6)
   expect(feed.subscribed.slice(3).map((s) => s.coin)).toEqual(["ETH", "ETH", "ETH"])
@@ -129,6 +129,7 @@ test("tape shows aggressor side and merges one taker's fills", async ({ page }) 
   await expect(rows.nth(1).locator("span").nth(1)).toHaveText("0.30000")
   await expect(rows.nth(1)).toHaveAttribute("data-side", "buy")
   await expect(rows.nth(3)).toHaveAttribute("data-side", "sell")
+  await expect(page.getByTestId("last")).toHaveText("81,001")
 })
 
 test("both tabs keep streaming while hidden", async ({ page }) => {
@@ -153,4 +154,83 @@ test("reconnects after the server drops the socket and resubscribes", async ({ p
   await waitForSubscriptions(feed, 6)
   expect(feed.sockets).toHaveLength(2)
   await expect(page.getByTestId("status")).toHaveAttribute("data-status", "live")
+})
+
+test("tapping a level shows the cost to sweep to it and tapping again clears it", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 2)).toHaveText(["80,998", "3.00000", "6.00000"])
+  await rows(page, "bids").nth(2).click()
+  await expect(page.getByTestId("sweep")).toHaveText("Sell 6.00000 BTC · avg 80,998.7 · 0.2 bps")
+  await expect(rows(page, "bids").nth(2)).toHaveAttribute("aria-pressed", "true")
+  await rows(page, "bids").nth(2).click()
+  await expect(page.getByTestId("sweep")).toHaveCount(0)
+  await expect(page.getByLabel("Precision")).toBeVisible()
+})
+
+test("imbalance line follows visible depth", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(page.getByTestId("imbalance")).toHaveAttribute("data-share", "50")
+  feed.book(
+    "BTC",
+    ladder(
+      81_000,
+      -1,
+      sizes(20, () => 3),
+    ),
+    ladder(
+      81_001,
+      1,
+      sizes(20, () => 1),
+    ),
+  )
+  await expect(page.getByTestId("imbalance")).toHaveAttribute("data-share", "75")
+})
+
+test("rows fill the height the widget is given", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 700 })
+  await expect(cells(page, "bids", 0)).toHaveCount(3)
+  const short = await rows(page, "bids").count()
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1100 })
+  await expect.poll(() => rows(page, "bids").count()).toBeGreaterThan(short)
+  for (const side of ["asks", "bids"] as const) {
+    const box = await page.getByTestId(side).boundingBox()
+    const heights = await rows(page, side).evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().height),
+    )
+    const gap = (box?.height ?? 0) - heights.reduce((sum, height) => sum + height, 0)
+    expect(heights.every(Number.isInteger)).toBe(true)
+    expect(gap).toBeGreaterThanOrEqual(0)
+    expect(gap).toBeLessThan(heights.length)
+  }
+})
+
+test("pauses its streams while hidden and resumes when shown", async ({ page }) => {
+  const feed = await openBook(page)
+  await page.locator("[data-widget]").evaluate((widget) => {
+    widget.style.display = "none"
+  })
+  await expect.poll(() => feed.unsubscribed.length).toBe(3)
+  await page.locator("[data-widget]").evaluate((widget) => {
+    widget.style.display = ""
+  })
+  await waitForSubscriptions(feed, 6)
+})
+
+test("desktop dashboard runs two books on one socket and wires a tap to the ticket", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the dashboard is the desktop layout")
+  const feed = await openBook(page, undefined, "/", 6)
+  expect(feed.sockets).toHaveLength(1)
+  expect(feed.subscribed.map((s) => s.coin).sort()).toEqual(["BTC", "BTC", "BTC", "ETH", "ETH", "ETH"])
+  feed.book("BTC", bids, asks)
+  feed.book("ETH", ladder(2_364.5, -0.1, sizes(20)), ladder(2_364.6, 0.1, sizes(20)))
+  const [btc, eth] = [0, 1].map((n) => page.locator("[data-widget]:not([data-paused=true])").nth(n))
+  await expect(btc.getByTestId("asks").locator(":scope > *").first()).toContainText("81,001")
+  await expect(eth.getByTestId("asks").locator(":scope > *").first()).toContainText("2,364.6")
+  await btc.getByTestId("asks").locator(":scope > *").nth(1).click()
+  await expect(page.getByTestId("ticket-market")).toHaveText("BTC-USD")
+  await expect(page.getByTestId("ticket-price")).toHaveText("81,002")
 })

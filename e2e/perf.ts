@@ -156,7 +156,9 @@ export function trackLatency() {
     }
   }
   new MutationObserver(() => {
-    const text = document.querySelector("[data-testid=asks] > div > span:nth-of-type(2)")?.textContent ?? ""
+    const text =
+      document.querySelector("[data-testid=asks] > button")?.querySelectorAll(":scope > span:not([aria-hidden])")[1]
+        ?.textContent ?? ""
     const arrived = arrivals.get(text)
     if (arrived === undefined) return
     latencies.push(performance.now() - arrived)

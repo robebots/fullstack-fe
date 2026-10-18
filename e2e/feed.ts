@@ -75,15 +75,17 @@ export async function mockFeed(page: Page) {
 
 export type Feed = Awaited<ReturnType<typeof mockFeed>>
 
-export const cells = (page: Page, side: "asks" | "bids", index: number) =>
-  page.getByTestId(side).locator(":scope > div").nth(index).locator(":scope > span")
+export const rows = (page: Page, side: "asks" | "bids") => page.getByTestId(side).locator(":scope > *")
 
-export async function openBook(page: Page, init?: () => void) {
+export const cells = (page: Page, side: "asks" | "bids", index: number) =>
+  rows(page, side).nth(index).locator(":scope > span:not([aria-hidden])")
+
+export async function openBook(page: Page, init?: () => void, path = "/embed/BTC", subscriptions = 3) {
   const feed = await mockFeed(page)
   if (init) await page.addInitScript(init)
-  await page.goto("/")
+  await page.goto(path)
   await page.waitForFunction(() => document.querySelector("[data-testid=bids]"))
-  await waitForSubscriptions(feed, 3)
+  await waitForSubscriptions(feed, subscriptions)
   return feed
 }
 

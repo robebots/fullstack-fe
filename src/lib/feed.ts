@@ -7,7 +7,9 @@ export type Subscription =
 
 export type Status = "connecting" | "live"
 
-type Entry = { subscription: Subscription; handler: (data: never) => void; acked: boolean }
+type Handler = (data: never) => void
+
+type Entry = { subscription: Subscription; handlers: Set<Handler>; acked: boolean }
 
 type Wire = Record<string, unknown>
 
@@ -37,17 +39,20 @@ export class Feed {
 
   subscribe<T>(subscription: Subscription, handler: (data: T) => void) {
     const key = routeOf(subscription.type, subscription)
-    const current = this.#entries.get(key)
-    const entry: Entry = { subscription, handler, acked: false }
-    this.#entries.set(key, entry)
-    if (current && sameSubscription(current.subscription, subscription)) entry.acked = current.acked
-    else {
-      if (current) this.#send("unsubscribe", current.subscription)
+    let entry = this.#entries.get(key)
+    if (!entry || !sameSubscription(entry.subscription, subscription)) {
+      if (entry) this.#send("unsubscribe", entry.subscription)
+      entry = { subscription, handlers: new Set(), acked: false }
+      this.#entries.set(key, entry)
       this.#send("subscribe", subscription)
     }
+    const owner = entry
+    const listener = handler as Handler
+    owner.handlers.add(listener)
     this.#connect()
     return () => {
-      if (this.#entries.get(key) !== entry) return
+      owner.handlers.delete(listener)
+      if (owner.handlers.size || this.#entries.get(key) !== owner) return
       this.#entries.delete(key)
       this.#send("unsubscribe", subscription)
     }
@@ -130,7 +135,7 @@ export class Feed {
       return
     }
     const entry = this.#entries.get(routeOf(channel, data))
-    if (entry?.acked) entry.handler(data as never)
+    if (entry?.acked) for (const handler of entry.handlers) handler(data as never)
   }
 }
 

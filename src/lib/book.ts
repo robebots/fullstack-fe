@@ -2,7 +2,7 @@ import { feed } from "./feed"
 import type { Bbo, Book, Coin, Level, Precision } from "./hyperliquid"
 import { paced } from "./paced"
 
-export type Row = { px: number; sz: number; total: number; totalUsd: number; flashAt: number }
+export type Row = { px: number; sz: number; total: number; totalUsd: number; flashAt: number; pulse: number }
 
 export type BookView = { bids: Row[]; asks: Row[]; bid: number; ask: number }
 
@@ -48,7 +48,8 @@ function rowsOf(side: 0 | 1, levels: Level[], previous: Row[], now: number) {
     totalUsd += px * sz
     const old = before.get(px)
     const changed = old ? old.sz !== sz : edge !== undefined && !beyond(side, px, edge)
-    return { px, sz, total, totalUsd, flashAt: changed ? now : (old?.flashAt ?? 0) }
+    if (!changed) return { px, sz, total, totalUsd, flashAt: old?.flashAt ?? 0, pulse: old?.pulse ?? 0 }
+    return { px, sz, total, totalUsd, flashAt: now, pulse: old ? Math.abs(sz - old.sz) / Math.max(sz, old.sz) : 1 }
   })
 }
 
