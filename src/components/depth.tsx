@@ -3,7 +3,7 @@
 import { cn } from "cn"
 import { useAtomValue, useSetAtom } from "jotai"
 import { type CSSProperties, Profiler, useLayoutEffect, useRef, useState } from "react"
-import { coinAtom, precisionAtom, rowsAtom, selectedAtom, selectLevelAtom, unitAtom } from "@/lib/atoms"
+import { coinAtom, layoutAtom, precisionAtom, rowsAtom, selectedAtom, selectLevelAtom, unitAtom } from "@/lib/atoms"
 import type { Row } from "@/lib/book"
 import { formatNumber } from "@/lib/format"
 import { decimalsOf, MARKETS, tickSize } from "@/lib/hyperliquid"
@@ -40,11 +40,13 @@ export function Columns({ last }: { last: "Total" | "Time" }) {
 export function Depth() {
   const rows = useAtomValue(rowsAtom)
   const setRows = useSetAtom(rowsAtom)
+  const layout = useAtomValue(layoutAtom)
   const [pitch, setPitch] = useState<number>()
   const asks = useRef<HTMLDivElement>(null)
+  const bids = useRef<HTMLDivElement>(null)
   const max = useBook((view) => niceCeil(Math.max(depthOf(view.bids, rows), depthOf(view.asks, rows))))
   useLayoutEffect(() => {
-    const element = asks.current
+    const element = layout === "bids" ? bids.current : asks.current
     if (!element) return
     const observer = new ResizeObserver(([entry]) => {
       const { height } = entry.contentRect
@@ -55,20 +57,24 @@ export function Depth() {
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [setRows])
+  }, [setRows, layout])
   return (
     <Profiler id="book" onRender={onRender}>
       <div
         className="flex min-h-0 flex-1 flex-col"
         style={{ "--max": max ?? 1, "--pitch": pitch && `${pitch}px` } as CSSProperties}
       >
-        <div ref={asks} data-testid="asks" className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
-          <Side side="asks" rows={rows} />
-        </div>
+        {layout !== "bids" && (
+          <div ref={asks} data-testid="asks" className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
+            <Side side="asks" rows={rows} />
+          </div>
+        )}
         <Spread />
-        <div data-testid="bids" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <Side side="bids" rows={rows} />
-        </div>
+        {layout !== "asks" && (
+          <div ref={bids} data-testid="bids" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <Side side="bids" rows={rows} />
+          </div>
+        )}
       </div>
     </Profiler>
   )

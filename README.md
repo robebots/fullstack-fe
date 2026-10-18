@@ -15,7 +15,7 @@ Asks on top, bids below, best prices meeting at the spread. Phones get the mock'
 - Tap a level and the footer prices the fill: `Buy 3.34160 BTC · avg 80,956.1 · 0.2 bps`. That's the size a market order fills walking to that level, its average price, and its distance from mid. Tap again to clear.
 - Flashes scale with the change. A small top-up barely blinks. A wall landing or getting pulled lights the row up.
 - The trades tab colors each print by aggressor. One taker's fills across several makers merge into one print, so a 5 BTC market buy reads as one line, not six.
-- The header shows the last trade, colored by who took it, and the real max leverage: 40× on BTC, 25× on ETH. The pair name and the menu icon both switch markets.
+- The header shows the last trade, colored by who took it, and the real max leverage: 40× on BTC, 25× on ETH. The pair name switches markets. The menu icon picks the layout: bids and asks, bids only, or asks only. One side alone gets the whole panel, about twice the rows.
 - Precision lists tick sizes for the current price (1, 10, 100) instead of raw `nSigFigs`, and drops options that would show the same book twice.
 
 ## What the obvious build gets wrong
@@ -51,7 +51,7 @@ Tweened bars show depth that's already gone. Every venue snaps its bars, so only
 - `onPriceSelect` fires on a tap. Tapping an ask means buy, tapping a bid means sell.
 - `/embed/BTC` and `/embed/ETH` render one widget full page, for an iframe.
 
-On a wide screen with a mouse, the demo page runs a BTC book and an ETH book side by side on one socket, both wired to one ticket.
+On a wide screen with a mouse, the demo page runs a BTC book and an ETH book side by side on one socket, both wired to one ticket. The demo page also runs mrdoob's [stats.js](https://github.com/mrdoob/stats.js/), so the frame rate is on screen while the book streams. Tap it to switch between FPS, frame time and memory.
 
 One known limit. Two widgets on the same coin at different precisions can't both get the fast book, because book messages don't carry `nSigFigs` and one socket can't tell them apart. The later widget takes it. The other keeps 500 ms depth and `bbo`.
 
@@ -69,7 +69,7 @@ pnpm exec playwright install chromium
 pnpm test
 ```
 
-`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 21 tests on a Pixel 7 profile and again on desktop Chrome. Fifteen check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression. The two-book dashboard test runs on desktop only.
+`pnpm test` builds with `next build --profile`, serves it on port 3100 and runs 22 tests on a Pixel 7 profile and again on desktop Chrome. Sixteen check behavior against a scripted Hyperliquid server. Six check performance and fail on a regression. The two-book dashboard test runs on desktop only.
 
 ## What the tests prove
 

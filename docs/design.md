@@ -73,7 +73,7 @@ Mobile follows the mock and comes first. On a fine pointer (`pointer-fine:`), th
 | Tabs | 42 px row, 12 px labels, full-width underline | same |
 | Controls | precision and unit in a 31 px row under the tabs | same row, moved with CSS `order` |
 | Column header | 12 px grey, Size and Total right-aligned | same |
-| Rows | 23 px, columns 20% / 40% / 40%, 10 px side padding, full-height bars | same, with the pitch fitted to the height in whole pixels so touching bars never leave a seam |
+| Rows | 23 px, columns 20% / 40% / 40%, 10 px side padding, full-height bars | same, with the pitch fitted to the height in whole pixels so touching bars never leave a seam, and tabular digits so right-aligned decimals line up |
 | Spread | centered "Spread 1 0.001%" in a 23 px row | same |
 | Header | market bar | the mock's header card, compacted to 56 px, with the last price and a market chevron |
 
@@ -91,4 +91,6 @@ These carry the colors the mock already uses.
 | Tapped level | white at 15% over the row, levels the sweep eats at 7% |
 | Fill price | replaces the footer controls while a level is tapped: side in its color, size and average in white, the rest grey, and a close button |
 | Last price | in the header next to the leverage chip, green after a market buy and red after a market sell |
-| Market picker | the pair name and the menu icon both open it. The chevron only shows on desktop, since the mock has none. |
+| Market picker | the pair name opens it. The chevron only shows on desktop, since the mock has none. |
+| Book layout | the menu icon opens Bids and asks, Bids only and Asks only. One side alone takes the whole panel, with the spread at its edge. |
+| Frame meter | stats.js on the demo page only, in the gap beside the section title on phones and the top-left corner on desktop |

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   coinAtom,
+  layoutAtom,
   listenerAtom,
   type PriceSelection,
   precisionAtom,
@@ -44,6 +45,12 @@ const stacked = "flex min-h-0 flex-col [grid-area:1/1] data-hidden:invisible"
 
 const tab =
   "h-full flex-none justify-self-center rounded-none px-2.5 text-[17px] font-normal after:bg-brand group-data-horizontal/tabs:after:bottom-[-2px] group-data-horizontal/tabs:after:h-[3px] pointer-coarse:pt-1 pointer-coarse:not-data-active:pt-2.5 pointer-fine:justify-self-stretch pointer-fine:px-0 pointer-fine:text-xs pointer-fine:group-data-horizontal/tabs:after:h-0.5"
+
+const LAYOUTS = [
+  { value: "both", label: "Bids and asks" },
+  { value: "bids", label: "Bids only" },
+  { value: "asks", label: "Asks only" },
+] as const
 
 const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
 
@@ -104,7 +111,7 @@ function Widget() {
         aria-label="Order book"
         data-testid="status"
         data-status={status}
-        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border bg-card transition-opacity data-[status=connecting]:opacity-60 pointer-fine:mt-1 pointer-fine:rounded-md"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] border bg-card transition-opacity data-[status=connecting]:opacity-60 pointer-fine:mt-1 pointer-fine:tabular-nums pointer-fine:rounded-md"
       >
         <Tabs defaultValue="orders" className="min-h-0 flex-1 gap-0">
           <TabsList
@@ -136,15 +143,13 @@ function Widget() {
 
 function Header() {
   const [coin, setCoin] = useAtom(coinAtom)
+  const [layout, setLayout] = useAtom(layoutAtom)
   const setSelected = useSetAtom(selectedAtom)
-  const [open, setOpen] = useState(false)
   const market = MARKETS[coin]
   const last = useTrades((tape) => tape[0])
   return (
     <header className="flex h-20 shrink-0 items-center gap-3 rounded-[10px] border bg-card pr-[26px] pb-1 pl-[22px] pointer-fine:h-14 pointer-fine:pb-0 pointer-fine:gap-2.5 pointer-fine:rounded-md pointer-fine:px-3">
       <Select
-        open={open}
-        onOpenChange={setOpen}
         items={COINS.map((value) => ({ value, label: `${value}-USD` }))}
         value={coin}
         onValueChange={(value) => {
@@ -186,23 +191,41 @@ function Header() {
         {market.maxLeverage}
         <span className="ml-px text-xs">×</span>
       </span>
-      <button
-        type="button"
-        aria-label="Markets"
-        onClick={() => setOpen(true)}
-        className="ml-1.5 text-neutral-600 hover:text-neutral-400"
+      <Select
+        items={LAYOUTS}
+        value={layout}
+        onValueChange={(value) => {
+          if (!value) return
+          setLayout(value)
+          setSelected(null)
+        }}
       >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 20 14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          className="h-3.5 w-5 pointer-fine:h-2.5 pointer-fine:w-3.5"
+        <SelectTrigger
+          aria-label="Book layout"
+          className={cn(plain, "ml-1.5 text-neutral-600 hover:text-neutral-400 [&>svg:last-child]:hidden")}
         >
-          <path d="M0 1h20M0 7h20M0 13h20" />
-        </svg>
-      </button>
+          <span className="block h-3.5 w-5 pointer-fine:h-2.5 pointer-fine:w-3.5">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              preserveAspectRatio="none"
+              className="size-full"
+            >
+              <path d="M0 1h20M0 7h20M0 13h20" />
+            </svg>
+          </span>
+        </SelectTrigger>
+        <SelectContent align="end" alignItemWithTrigger={false}>
+          {LAYOUTS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </header>
   )
 }

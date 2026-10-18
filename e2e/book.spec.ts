@@ -207,6 +207,21 @@ test("rows fill the height the widget is given", async ({ page, isMobile }) => {
   }
 })
 
+test("the menu shows one side of the book across the whole panel", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveCount(3)
+  const both = await rows(page, "bids").count()
+  await page.getByLabel("Book layout").click()
+  await page.getByRole("option", { name: "Bids only" }).click()
+  await expect(page.getByTestId("asks")).toHaveCount(0)
+  await expect.poll(() => rows(page, "bids").count()).toBeGreaterThan(both)
+  await page.getByLabel("Book layout").click()
+  await page.getByRole("option", { name: "Asks only" }).click()
+  await expect(page.getByTestId("bids")).toHaveCount(0)
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
+})
+
 test("pauses its streams while hidden and resumes when shown", async ({ page }) => {
   const feed = await openBook(page)
   await page.locator("[data-widget]").evaluate((widget) => {

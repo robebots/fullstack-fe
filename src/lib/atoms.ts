@@ -12,6 +12,8 @@ export const statusAtom = atom<Status>("connecting")
 
 export const rowsAtom = atom(12)
 
+export const layoutAtom = atom<"both" | "bids" | "asks">("both")
+
 export type Level = { side: "asks" | "bids"; px: number }
 
 export type PriceSelection = { coin: Coin; side: "buy" | "sell"; price: number }

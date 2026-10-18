@@ -3,12 +3,14 @@
 import { cn } from "cn"
 import { useState } from "react"
 import { formatNumber } from "@/lib/format"
+import { FrameStats } from "./frame-stats"
 import { OrderBook, type PriceSelection } from "./order-book"
 
 export function Showcase() {
   const [selection, setSelection] = useState<PriceSelection>()
   return (
     <main className="h-dvh">
+      <FrameStats className="fixed top-24 right-[max(0px,calc(50%-189.5px))] z-10 lg:pointer-fine:top-4 lg:pointer-fine:right-auto lg:pointer-fine:left-4" />
       <div className="mx-auto h-full max-w-[379px] pt-3.5 pb-px lg:pointer-fine:hidden">
         <OrderBook market="BTC" />
       </div>
