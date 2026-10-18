@@ -24,8 +24,11 @@ None of them use an animation library. Every production venue snaps its bars. Fl
 - Meng To's `optimize-web-animations` skill ([SKILL.md](https://github.com/MengTo/Skills/blob/main/agent-skills/codex/optimize-web-animations/SKILL.md), mirrored on getclaudeskills.com, which returned 500): measure first, pause offscreen work, cancel every frame, timer and observer on unmount, and don't trust screenshots as proof.
 - mcpmarket `web-animation-optimizer`: blocked with a 403 from both a fetch and a real browser, and not on GitHub under that name. Unread.
 
-## Where we stand
+## What we took
 
-- Bars use `scale` with a 200 ms transition, which runs on the compositor (verified in a trace). Production venues snap instead. Snapping is cheaper, and the transition is our answer to the brief's smoothness ask. The perf suite holds 60 fps at 1x with it on.
-- Flashes animate an overlay's opacity through the Web Animations API, compositor-friendly like Hyperliquid's. Ours is neutral white at 0.14 for 350 ms. Hyperliquid and Mango flash in the side color.
-- Reduced motion hides the flash and drops transitions in CSS, but `animate()` still runs on the hidden element. dYdX gates the keyframe behind `prefers-reduced-motion: no-preference` instead.
+- Bars snap. A bar is a number, and every venue shows the number as it is. A 200 ms tween showed depth that no longer existed, so it went.
+- Flashes copy Hyperliquid: an overlay in the row's side color, opacity 0 to 0.3 at 20% and back to 0 over 800 ms. Opacity on an overlay stays on the compositor. A new flash cancels the running one, because overlapping animations fall back to the main thread.
+- Prices are colored by side, as on Hyperliquid and Binance.
+- With reduced motion on, the flash call is skipped entirely, like dYdX's gate.
+- The trades tab copies the Hyperliquid tab: price colored by aggressor, size, time. New prints get the same side-colored pulse through a CSS keyframe that runs once when the row mounts. Rows are keyed by trade id, so only new prints animate.
+- No animation library. Nobody uses one for this.

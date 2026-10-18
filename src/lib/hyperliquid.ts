@@ -22,6 +22,8 @@ export type Book = { coin: Coin; time: number; levels: [Level[], Level[]]; fast?
 
 export type Bbo = { coin: Coin; time: number; bbo: [Level | null, Level | null] }
 
+export type Trade = { coin: Coin; side: "A" | "B"; px: string; sz: string; time: number; tid: number }
+
 export const magnitudeOf = (price: number) => Math.floor(Math.log10(price))
 
 export function tickSize({ nSigFigs, mantissa }: Precision, magnitude: number, szDecimals: number) {

@@ -25,11 +25,12 @@ Next.js 16 App Router with the React Compiler, TanStack Query for server state, 
 ## Rules
 
 - No comments in code.
-- YAGNI. Add a feature, file or dependency only when the brief or a failing test needs it.
+- YAGNI means no bloat and no dumb decisions. Everything in the mock ships, built with the least code that does it right.
 - The socket and the book engine stay out of React, in `src/lib`. Components read through `useBook(select)`.
 - A row renders only when its own level changed. `e2e/perf.spec.ts` checks this, so keep it green.
 - Validate every subscription before sending it. The server drops the socket on bad params and sends no error.
-- Animate `transform`, `scale` and `opacity` only, and never start a second animation on an element while one is running. Honor `prefers-reduced-motion`.
+- Data snaps; only feedback animates. Animate `opacity` on overlays, cancel the running animation before starting another, and skip animation under `prefers-reduced-motion`.
+- Match how traders expect a venue to behave. When unsure, check Hyperliquid's own book (docs/animation-research.md).
 - Back performance claims with numbers from the perf suite.
 
 ## Commands
@@ -38,7 +39,7 @@ Next.js 16 App Router with the React Compiler, TanStack Query for server state, 
 - `pnpm build` makes a production build. `pnpm build:profile` keeps React's Profiler on and records `performance.measure` entries for the perf tests.
 - `pnpm test` builds with profiling, serves on port 3100 and runs the Playwright suite. Run `pnpm exec playwright install chromium` once first.
 - `pnpm lint` runs Biome. `pnpm format` formats.
-- `node scripts/probe/cadence.mjs [coin] [seconds]`, `precision.mjs` and `switching.mjs` re-measure the live feed. They need Node 22 or newer.
+- `node scripts/probe/cadence.mjs [coin] [seconds]`, `precision.mjs`, `switching.mjs`, `post.mjs` and `trades.mjs [coin] [seconds]` re-measure the live feed. They need Node 22 or newer.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

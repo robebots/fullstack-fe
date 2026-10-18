@@ -12,3 +12,7 @@ export function formatNumber(value: number, minDecimals: number, maxDecimals = m
   }
   return format.format(value)
 }
+
+const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+
+export const formatTime = (time: number) => clock.format(time)

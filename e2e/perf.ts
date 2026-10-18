@@ -54,7 +54,7 @@ export async function stopRecording(page: Page) {
     renderMaxMs: round(quantile(commits, 1)),
     longFrames: longFrames.length,
     longestFrameMs: Math.round(Math.max(0, ...longFrames)),
-    rendered: measures.filter((m) => m.name !== "book").map((m) => m.name),
+    rendered: measures.filter((m) => /^(asks|bids)-/.test(m.name)).map((m) => m.name),
   }
 }
 
@@ -72,21 +72,32 @@ export function inPageFeed() {
   const level = (px: number) => ({ px: px.toFixed(1), sz: (random() * 4 + 0.01).toFixed(5), n: 1 })
   const side = (best: number, step: number, count: number) =>
     Array.from({ length: count }, (_, i) => level(best + i * step))
-  const depth = `"l2Book","data":{"coin":"BTC","levels":${JSON.stringify([side(81_000, -1, 20), side(81_001, 1, 20)])},"time":`
-  const bodies: string[] = []
+  const message = (channel: string, data: unknown) => JSON.stringify({ channel, data })
+  const depth = [side(81_000, -1, 20), side(81_001, 1, 20)]
+  const messages: string[] = []
   let bid = 81_000
+  let tid = 1
   for (let i = 0; i < 2_000; i++) {
     bid += Math.round((random() - 0.5) * 3)
-    bodies.push(
-      i % 2
-        ? `"bbo","data":{"coin":"BTC","bbo":${JSON.stringify([level(bid), level(bid + 1)])},"time":`
-        : `"l2Book","data":{"coin":"BTC","fast":true,"levels":${JSON.stringify([side(bid, -1, 5), side(bid + 1, 1, 5)])},"time":`,
+    const trade = () => ({
+      coin: "BTC",
+      side: random() > 0.5 ? "B" : "A",
+      px: `${bid}.0`,
+      sz: "0.01",
+      time: 1,
+      tid: tid++,
+    })
+    messages.push(
+      i % 4 === 3
+        ? message("trades", [trade(), trade()])
+        : i % 2
+          ? message("bbo", { coin: "BTC", time: -1, bbo: [level(bid), level(bid + 1)] })
+          : message("l2Book", { coin: "BTC", time: -1, fast: true, levels: [side(bid, -1, 5), side(bid + 1, 1, 5)] }),
     )
   }
   const sockets: FakeSocket[] = []
   let time = 1
-  const emit = (body: string) => {
-    const data = `{"channel":${body}${time++}}}`
+  const emit = (data: string) => {
     for (const socket of sockets) socket.onmessage?.(new MessageEvent("message", { data }))
   }
   class FakeSocket {
@@ -103,12 +114,15 @@ export function inPageFeed() {
       })
     }
     send(raw: string) {
-      const { method, subscription } = JSON.parse(raw)
+      const { method, subscription, id } = JSON.parse(raw)
+      if (method === "post") {
+        const data = { coin: "BTC", time: time++, levels: depth }
+        emit(message("post", { id, response: { type: "info", payload: { type: "l2Book", data } } }))
+      }
       if (method !== "subscribe") return
       const echo =
-        subscription.type === "bbo" ? subscription : { nSigFigs: null, mantissa: null, fast: false, ...subscription }
-      emit(`"subscriptionResponse","data":{"method":"subscribe","subscription":${JSON.stringify(echo)},"time":`)
-      if (subscription.type === "l2Book" && !subscription.fast) emit(depth)
+        subscription.type === "l2Book" ? { nSigFigs: null, mantissa: null, fast: false, ...subscription } : subscription
+      emit(message("subscriptionResponse", { method: "subscribe", subscription: echo }))
     }
     close() {}
   }
@@ -119,7 +133,7 @@ export function inPageFeed() {
       let sent = 0
       const timer = setInterval(() => {
         const due = Math.min(ms, performance.now() - start) * (perSecond / 1000)
-        while (sent < due) emit(bodies[sent++ % bodies.length])
+        while (sent < due) emit(messages[sent++ % messages.length].replace('"time":-1', `"time":${time++}`))
       }, 4)
       setTimeout(() => {
         clearInterval(timer)

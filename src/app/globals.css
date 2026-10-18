@@ -22,14 +22,26 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-bid: #5effd1;
-  --color-ask: #f43b34;
+  --color-bid: #1fa67d;
+  --color-ask: #ed7088;
+  --color-brand: #e25727;
+  --animate-print: print 800ms ease-out;
   --color-bid-bar: #213931;
   --color-ask-bar: #361c1b;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+
+  @keyframes print {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    20% {
+      opacity: 0.3;
+    }
+  }
 }
 
 :root {

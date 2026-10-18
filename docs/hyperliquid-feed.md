@@ -97,6 +97,12 @@ Messages don't carry `nSigFigs`. The client has to drop each book feed's message
 
 `{"nSigFigs": 4, "mantissa": 2}` and `{"coin": "NOPE"}` each got no reply at all. The server closed the socket with code 1006 after 176 ms and 196 ms. A valid subscription sent afterward never got an ack because the socket was already gone.
 
+### Depth over the socket
+
+The socket also takes info requests: `{"method":"post","id":1,"request":{"type":"info","payload":{"type":"l2Book","coin":"BTC","nSigFigs":4}}}`. `node scripts/probe/post.mjs` sent 20 of them 500 ms apart. Every one came back, p50 155 ms round trip, with a fresh 20-level book each time and the requested `nSigFigs` applied. The reply arrives on channel `post` with the request `id`, so it can't be confused with another precision.
+
+That is how the widget gets depth. The 5.4 s subscription left whole stretches of the book missing whenever price moved, because its levels sat on the wrong side of the fresh 5-level book.
+
 ## bbo
 
 `{ type: "bbo", coin }` returns data shaped like this. Either side can be null.
@@ -109,7 +115,11 @@ The server pushes it on blocks where the best bid or offer changed. It ignores `
 
 ## trades
 
-`{ type: "trades", coin }` returns `WsTrade[]` with `coin`, `side` (`"B"` or `"A"`), `px`, `sz`, `time`, `hash`, `tid` and `users: [buyer, seller]`. The first message after subscribing held the last 30 trades. After that most messages carried one trade. Some `hash` values are all zeros. Confirm that `side` is the taker's side before coloring prints by it.
+`{ type: "trades", coin }` returns `WsTrade[]` with `coin`, `side` (`"B"` or `"A"`), `px`, `sz`, `time`, `hash`, `tid` and `users: [buyer, seller]`. Some `hash` values are all zeros.
+
+`node scripts/probe/trades.mjs BTC 30` checked each print against the touch at that moment. `B` prints landed at or above the ask 34 times and at the bid 0 times. `A` prints landed at the bid 40 times and at the ask 0 times. So `side` is the aggressor: `B` is a market buy, `A` a market sell.
+
+The first message holds the last 30 trades, oldest first. Of 105 live prints, 42 shared side, price and timestamp with the print before them in the same message: one taker order filling against several makers.
 
 ## activeAssetCtx
 
