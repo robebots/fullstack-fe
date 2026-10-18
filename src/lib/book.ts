@@ -94,3 +94,13 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
   })
   for await (const _ of updates) yield { ...sources }
 }
+
+export type Sweep = { total: number; totalUsd: number; avg: number; fromMid: number }
+
+export function sweepOf(view: BookView, side: "asks" | "bids", px: number): Sweep | undefined {
+  const row = view[side].find((level) => level.px === px)
+  if (!row || !view.bid || !view.ask) return undefined
+  const mid = (view.bid + view.ask) / 2
+  const avg = row.totalUsd / row.total
+  return { total: row.total, totalUsd: row.totalUsd, avg, fromMid: (Math.abs(avg - mid) / mid) * 100 }
+}

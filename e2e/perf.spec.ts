@@ -1,8 +1,9 @@
 import { expect, type Page, test } from "@playwright/test"
-import { cells, ladder, openBook, rows, sizes } from "./feed"
+import { cells, ladder, openBook, routeMarkets, rows, sizes } from "./feed"
 import { inPageFeed, quantile, report, startRecording, stopRecording, trackLatency } from "./perf"
 
 async function openStressBook(page: Page, cpu: number) {
+  await routeMarkets(page)
   await page.addInitScript(inPageFeed)
   await page.goto("/embed/BTC")
   await expect(cells(page, "bids", 3)).toHaveCount(3)

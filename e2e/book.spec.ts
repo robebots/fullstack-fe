@@ -1,9 +1,19 @@
-import { expect, test } from "@playwright/test"
-import { cells, ladder, openBook, rows, sizes, waitForSubscriptions } from "./feed"
+import { expect, type Page, test } from "@playwright/test"
+import { cells, ladder, openBook, type Quote, rows, sizes, waitForSubscriptions } from "./feed"
 
 const bids = ladder(81_000, -1, sizes(20))
 const asks = ladder(81_001, 1, sizes(20))
 const nine = sizes(5, () => 9)
+
+const cents = (best: number, step: number) =>
+  sizes(20).map((sz, i): Quote => [Math.round((best + i * step) * 100) / 100, sz])
+
+async function choose(page: Page, option: string) {
+  await page.getByLabel("Book settings").click()
+  await page.getByRole("menuitemradio", { name: option }).click()
+}
+
+const searchButton = (page: Page) => page.locator("button[aria-label='Search markets']:visible")
 
 test("renders levels with cumulative totals and spread from live depth", async ({ page }) => {
   const feed = await openBook(page)
@@ -88,28 +98,16 @@ test("precision options show live tick sizes and collapse duplicates", async ({ 
   ])
 })
 
-test("switching coin moves every subscription and formats for the new market", async ({ page }) => {
+test("USD units show notional size and total", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
-  await page.getByLabel("Market", { exact: true }).click()
-  await page.getByRole("option", { name: "ETH-USD" }).click()
-  await waitForSubscriptions(feed, 6)
-  expect(feed.subscribed.slice(3).map((s) => s.coin)).toEqual(["ETH", "ETH", "ETH"])
-  await expect.poll(() => feed.unsubscribed.map((s) => s.coin)).toEqual(["BTC", "BTC", "BTC"])
-  feed.book("ETH", ladder(2_364.5, -0.1, sizes(20)), ladder(2_364.6, 0.1, sizes(20)))
-  await expect(cells(page, "bids", 1)).toHaveText(["2,364.4", "2.0000", "3.0000"])
-  await expect(page.getByText("Size (ETH)").first()).toBeVisible()
-})
-
-test("USD toggle shows notional size and total", async ({ page }) => {
-  const feed = await openBook(page)
-  feed.book("BTC", bids, asks)
-  await page.getByRole("button", { name: "USD" }).click()
+  await page.getByLabel("Units").click()
+  await page.getByRole("option", { name: "USD" }).click()
   await expect(page.getByText("Total (USD)")).toBeVisible()
   await expect(cells(page, "bids", 1)).toHaveText(["80,999", "161,998", "242,998"])
 })
 
-test("tape shows aggressor side and merges one taker's fills", async ({ page }) => {
+test("tape shows aggressor side, merges one taker's fills and links each print to the explorer", async ({ page }) => {
   const feed = await openBook(page)
   const at = Date.UTC(2026, 9, 18, 12, 0, 5)
   feed.trades("BTC", [
@@ -122,14 +120,16 @@ test("tape shows aggressor side and merges one taker's fills", async ({ page }) 
     { side: "A", px: 81_001, sz: 1, time: at, tid: 5 },
   ])
   await page.getByRole("tab", { name: "Trades" }).click()
-  const rows = page.getByTestId("trades").locator(":scope > div")
-  await expect(rows).toHaveCount(4)
-  await expect(rows.nth(0).locator("span").first()).toHaveText("81,001")
-  await expect(rows.nth(0)).toHaveAttribute("data-side", "sell")
-  await expect(rows.nth(1).locator("span").nth(1)).toHaveText("0.30000")
-  await expect(rows.nth(1)).toHaveAttribute("data-side", "buy")
-  await expect(rows.nth(3)).toHaveAttribute("data-side", "sell")
-  await expect(page.getByTestId("last")).toHaveText("81,001")
+  const prints = page.getByTestId("trades").locator(":scope > div")
+  const text = (index: number) => prints.nth(index).locator(":scope > span:not([aria-hidden])")
+  await expect(prints).toHaveCount(4)
+  await expect(text(0).first()).toHaveText("81,001")
+  await expect(prints.nth(0)).toHaveAttribute("data-side", "sell")
+  await expect(text(1).nth(1)).toHaveText("0.30000")
+  await expect(prints.nth(1)).toHaveAttribute("data-side", "buy")
+  await expect(prints.nth(3)).toHaveAttribute("data-side", "sell")
+  await expect(prints.nth(0).getByRole("link")).toHaveAttribute("href", "https://app.hyperliquid.xyz/explorer/tx/0x5")
+  await expect(prints.nth(1).getByRole("link")).toHaveAttribute("href", "https://app.hyperliquid.xyz/explorer/tx/0x3")
 })
 
 test("both tabs keep streaming while hidden", async ({ page }) => {
@@ -139,7 +139,7 @@ test("both tabs keep streaming while hidden", async ({ page }) => {
   await page.getByRole("tab", { name: "Trades" }).click()
   feed.book("BTC", ladder(81_005, -1, sizes(20)), ladder(81_006, 1, sizes(20)))
   await page.waitForTimeout(700)
-  await page.getByRole("tab", { name: "Orders" }).click()
+  await page.getByRole("tab", { name: "Order Book" }).click()
   await expect(cells(page, "bids", 0)).toHaveText(["81,005", "1.00000", "1.00000"])
   expect(feed.subscribed).toHaveLength(3)
   expect(feed.unsubscribed).toHaveLength(0)
@@ -156,39 +156,34 @@ test("reconnects after the server drops the socket and resubscribes", async ({ p
   await expect(page.getByTestId("status")).toHaveAttribute("data-status", "live")
 })
 
-test("tapping a level shows the cost to sweep to it and tapping again clears it", async ({ page }) => {
+test("tapping a level on touch prices the fill and tapping again clears it", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "touch shows the fill in a strip; a mouse gets the hover card")
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await expect(cells(page, "bids", 2)).toHaveText(["80,998", "3.00000", "6.00000"])
   await rows(page, "bids").nth(2).click()
-  await expect(page.getByTestId("sweep")).toHaveText("Sell 6.00000 BTC · avg 80,998.7 · 0.2 bps")
+  await expect(page.getByTestId("sweep")).toHaveText("Sell 6.00000 BTC · avg 80,998.7 · 0.0023% from mid")
   await expect(rows(page, "bids").nth(2)).toHaveAttribute("aria-pressed", "true")
   await rows(page, "bids").nth(2).click()
   await expect(page.getByTestId("sweep")).toHaveCount(0)
-  await expect(page.getByLabel("Precision")).toBeVisible()
 })
 
-test("imbalance line follows visible depth", async ({ page }) => {
+test("hovering a level shows distance from mid, average price and totals", async ({ page, isMobile }) => {
+  test.skip(isMobile, "hover needs a mouse")
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
-  await expect(page.getByTestId("imbalance")).toHaveAttribute("data-share", "50")
-  feed.book(
-    "BTC",
-    ladder(
-      81_000,
-      -1,
-      sizes(20, () => 3),
-    ),
-    ladder(
-      81_001,
-      1,
-      sizes(20, () => 1),
-    ),
-  )
-  await expect(page.getByTestId("imbalance")).toHaveAttribute("data-share", "75")
+  await expect(cells(page, "bids", 2)).toHaveText(["80,998", "3.00000", "6.00000"])
+  await rows(page, "bids").nth(2).hover()
+  const card = page.getByTestId("hover-card")
+  await expect(card).toContainText("Distance from Mid0.0023%")
+  await expect(card).toContainText("Average Price80,999")
+  await expect(card).toContainText("Total (BTC)6.00000")
+  await expect(card).toContainText("Total (USD)485,992")
+  await page.mouse.move(1, 1)
+  await expect(card).toHaveCount(0)
 })
 
-test("rows fill the height the widget is given", async ({ page, isMobile }) => {
+test("rows fill the height the widget is given", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 700 })
@@ -201,25 +196,44 @@ test("rows fill the height the widget is given", async ({ page, isMobile }) => {
     const heights = await rows(page, side).evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().height),
     )
-    const gap = (box?.height ?? 0) - heights.reduce((sum, height) => sum + height, 0)
-    expect(gap).toBeGreaterThan(-0.5)
-    expect(gap).toBeLessThan(isMobile ? 0.5 : heights.length)
+    const filled = heights.reduce((sum, height) => sum + height, 0)
+    expect(Math.abs((box?.height ?? 0) - filled)).toBeLessThan(0.5)
   }
 })
 
-test("the menu shows one side of the book across the whole panel", async ({ page }) => {
+test("the menu shows one side, both sides or both side by side", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await expect(cells(page, "bids", 0)).toHaveCount(3)
   const both = await rows(page, "bids").count()
-  await page.getByLabel("Book layout").click()
-  await page.getByRole("option", { name: "Bids only" }).click()
+  await choose(page, "Bids only")
   await expect(page.getByTestId("asks")).toHaveCount(0)
   await expect.poll(() => rows(page, "bids").count()).toBeGreaterThan(both)
-  await page.getByLabel("Book layout").click()
-  await page.getByRole("option", { name: "Asks only" }).click()
+  await choose(page, "Asks only")
   await expect(page.getByTestId("bids")).toHaveCount(0)
   await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
+  await choose(page, "Side by side")
+  await expect(cells(page, "bids", 0)).toHaveText(["1.00000", "81,000"])
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000"])
+  const left = await page.getByTestId("bids").boundingBox()
+  const right = await page.getByTestId("asks").boundingBox()
+  expect(right?.x ?? 0).toBeGreaterThan(left?.x ?? 0)
+})
+
+test("stacked and large panels show the book and trades together", async ({ page, isMobile }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await choose(page, "Stacked")
+  await expect(page.getByTestId("trades")).toBeVisible()
+  const book = await page.getByTestId("bids").boundingBox()
+  let tape = await page.getByTestId("trades").boundingBox()
+  expect(tape?.y ?? 0).toBeGreaterThan(book?.y ?? 0)
+  await choose(page, "Large")
+  await expect(page.getByTestId("trades")).toBeVisible()
+  tape = await page.getByTestId("trades").boundingBox()
+  const large = await page.getByTestId("bids").boundingBox()
+  if (isMobile) expect(tape?.y ?? 0).toBeGreaterThan(large?.y ?? 0)
+  else expect(tape?.x ?? 0).toBeGreaterThan(large?.x ?? 0)
 })
 
 test("pauses its streams while hidden and resumes when shown", async ({ page }) => {
@@ -234,27 +248,74 @@ test("pauses its streams while hidden and resumes when shown", async ({ page }) 
   await waitForSubscriptions(feed, 6)
 })
 
-test("desktop dashboard runs two books on one socket and wires a tap to the ticket", async ({ page, isMobile }) => {
-  test.skip(isMobile, "the dashboard is the desktop layout")
-  const feed = await openBook(page, undefined, "/", 6)
-  expect(feed.sockets).toHaveLength(1)
-  expect(feed.subscribed.map((s) => s.coin).sort()).toEqual(["BTC", "BTC", "BTC", "ETH", "ETH", "ETH"])
+test("the trade page streams market stats and a book click fills the order ticket", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the order form is part of the desktop layout")
+  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  expect(feed.subscribed).toContainEqual({ type: "activeAssetCtx", coin: "BTC" })
   feed.book("BTC", bids, asks)
-  feed.book("ETH", ladder(2_364.5, -0.1, sizes(20)), ladder(2_364.6, 0.1, sizes(20)))
-  const [btc, eth] = [0, 1].map((n) => page.locator("[data-widget]:not([data-paused=true])").nth(n))
-  await expect(btc.getByTestId("asks").locator(":scope > *").first()).toContainText("81,001")
-  await expect(eth.getByTestId("asks").locator(":scope > *").first()).toContainText("2,364.6")
-  await btc.getByTestId("asks").locator(":scope > *").nth(1).click()
-  await expect(page.getByTestId("ticket-market")).toHaveText("BTC-USD")
-  await expect(page.getByTestId("ticket-price")).toHaveText("81,002")
+  await expect(page.getByTestId("market-bar").filter({ visible: true })).toContainText("40x")
+  await expect(cells(page, "asks", 1)).toHaveText(["81,002", "2.00000", "3.00000"])
+  await rows(page, "asks").nth(1).click()
+  await expect(page.getByTestId("ticket-price")).toHaveValue("81002")
+  await expect(page.getByRole("button", { name: "Buy / Long" })).toHaveAttribute("aria-pressed", "true")
+  await rows(page, "bids").nth(0).click()
+  await expect(page.getByTestId("ticket-price")).toHaveValue("81000")
+  await expect(page.getByRole("button", { name: "Sell / Short" })).toHaveAttribute("aria-pressed", "true")
 })
 
-test.describe("on a wide touch screen", () => {
-  test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true, isMobile: true })
+test("search filters by name and Enter switches every subscription to the new market", async ({ page }) => {
+  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  await searchButton(page).click()
+  const options = page.getByTestId("market-option")
+  await expect
+    .poll(() => options.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-coin"))))
+    .toEqual(["BTC", "ETH", "SOL", "HYPE"])
+  await page.keyboard.type("so")
+  await expect(options).toHaveCount(1)
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/trade\/SOL$/)
+  await waitForSubscriptions(feed, 8)
+  expect(feed.subscribed.slice(4).map((subscription) => subscription.coin)).toEqual(["SOL", "SOL", "SOL", "SOL"])
+  await expect
+    .poll(() => feed.unsubscribed.map((subscription) => subscription.coin))
+    .toEqual(["BTC", "BTC", "BTC", "BTC"])
+  feed.options.decimals = 2
+  feed.book("SOL", cents(103.45, -0.01), cents(103.46, 0.01))
+  await expect(rows(page, "bids").nth(1)).toContainText("103.44")
+  await expect(rows(page, "bids").nth(1)).toContainText("3.00")
+})
 
-  test("shows the mock instead of the desktop dashboard", async ({ page }) => {
-    await openBook(page, undefined, "/")
-    await expect(page.locator("[data-widget]:not([data-paused=true])")).toHaveCount(1)
-    await expect(page.getByRole("complementary", { name: "Order ticket" })).toBeHidden()
-  })
+test("arrow keys move through results, ⌘K opens search and ⌘S stars a market across reloads", async ({ page }) => {
+  await openBook(page, undefined, "/trade/BTC", 4)
+  await page.keyboard.press("Control+k")
+  await expect(page.getByTestId("market-option")).toHaveCount(4)
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("ArrowDown")
+  await expect(page.locator("[data-active=true]")).toContainText("SOL-USD")
+  await page.keyboard.press("Control+s")
+  await expect(page.getByRole("button", { name: "Remove SOL from favorites" })).toBeVisible()
+  await page.reload()
+  await page.keyboard.press("Control+k")
+  await expect(page.getByRole("button", { name: "Remove SOL from favorites" })).toBeVisible()
+})
+
+test("strict search hides delisted markets and All shows them", async ({ page }) => {
+  await openBook(page, undefined, "/trade/BTC", 4)
+  await searchButton(page).click()
+  await page.keyboard.type("old")
+  await expect(page.getByTestId("market-option")).toHaveCount(0)
+  await page.getByRole("group", { name: "Listing" }).getByRole("button", { name: "All" }).click()
+  await expect(page.getByTestId("market-option")).toHaveCount(1)
+  await expect(page.getByTestId("market-option")).toContainText("OLD-USD")
+  await expect(page.getByTestId("market-option")).toContainText("delisted")
+})
+
+test("phones get the split book and page tabs like Hyperliquid's mobile view", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the split book is the phone layout")
+  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["1.00000", "81,000"])
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000"])
+  await page.getByRole("button", { name: "Trades", exact: true }).click()
+  await expect(page.getByTestId("trades").filter({ visible: true })).toHaveCount(1)
 })

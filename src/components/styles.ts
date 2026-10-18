@@ -1,14 +1,15 @@
 import { cn } from "cn"
 import type { ProfilerOnRenderCallback } from "react"
 
-export const grid =
-  "grid grid-cols-[144px_1fr_auto] items-center pr-4 pl-5 pointer-fine:grid-cols-[20%_40%_40%] pointer-fine:px-2.5"
+export const grid = "grid grid-cols-[30%_35%_35%] items-center px-2.5 pointer-coarse:px-3"
 
-export const row = cn(grid, "relative text-base contain-content pointer-fine:text-xs")
+export const row = cn(grid, "relative text-xs contain-content pointer-coarse:text-[13px]")
 
-export const size = "relative pointer-fine:text-right"
+export const split = "relative grid grid-cols-2 items-center px-2.5 text-xs contain-content pointer-coarse:text-[13px]"
 
-export const bar = "absolute inset-x-0 inset-y-1 origin-left pointer-fine:inset-y-0"
+export const bar = "absolute inset-x-0 inset-y-px"
+
+export const cell = "relative pointer-fine:hover:font-semibold"
 
 export const plain = "h-auto border-none bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent"
 

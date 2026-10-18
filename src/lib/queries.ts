@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai"
 import { coinAtom, precisionAtom } from "./atoms"
 import { type BookView, bookFrames, EMPTY_VIEW, type Sources, toView } from "./book"
 import { type Coin, magnitudeOf, type Precision } from "./hyperliquid"
+import { useMarket } from "./markets"
 import { EMPTY_TAPE, type Print, toTape, tradeFrames } from "./trades"
 
 export const bookQuery = (coin: Coin, precision: Precision) =>
@@ -46,3 +47,5 @@ export function useMagnitude() {
     placeholderData: (previous, query) => (query?.queryKey[1] === coin ? previous : undefined),
   }).data
 }
+
+export const useSzDecimals = () => useMarket(useAtomValue(coinAtom))?.szDecimals ?? 0

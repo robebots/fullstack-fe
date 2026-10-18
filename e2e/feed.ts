@@ -16,7 +16,38 @@ export const sizes = (count: number, size: (i: number) => number = (i) => i + 1)
 
 const depthKey = (coin: string, nSigFigs?: number) => `${coin}:${nSigFigs ?? "full"}`
 
+const listing = (name: string, szDecimals: number, maxLeverage: number, mark: number, isDelisted?: boolean) => ({
+  meta: { name, szDecimals, maxLeverage, ...(isDelisted ? { isDelisted } : {}) },
+  ctx: {
+    markPx: String(mark),
+    oraclePx: String(mark),
+    midPx: String(mark),
+    prevDayPx: String(mark * 0.99),
+    dayNtlVlm: String(mark * 1_000),
+    openInterest: "100",
+    funding: "0.0000125",
+  },
+})
+
+const LISTINGS = [
+  listing("BTC", 5, 40, 81_000.5),
+  listing("ETH", 4, 25, 2_364.55),
+  listing("SOL", 2, 20, 103.5),
+  listing("HYPE", 2, 10, 78.03),
+  listing("OLD", 0, 3, 0.5, true),
+]
+
+export async function routeMarkets(page: Page) {
+  await page.route("https://api.hyperliquid.xyz/info", (route) =>
+    route.fulfill({
+      json: [{ universe: LISTINGS.map((entry) => entry.meta) }, LISTINGS.map((entry) => entry.ctx)],
+    }),
+  )
+  await page.route("https://app.hyperliquid.xyz/coins/**", (route) => route.fulfill({ status: 404 }))
+}
+
 export async function mockFeed(page: Page) {
+  await routeMarkets(page)
   const subscribed: Subscription[] = []
   const unsubscribed: Subscription[] = []
   const requests: Subscription[] = []
@@ -68,7 +99,13 @@ export async function mockFeed(page: Page) {
     trades: (coin: string, prints: Print[]) =>
       send(
         "trades",
-        prints.map(({ px, sz, ...print }) => ({ coin, px: px.toFixed(options.decimals), sz: String(sz), ...print })),
+        prints.map(({ px, sz, ...print }) => ({
+          coin,
+          px: px.toFixed(options.decimals),
+          sz: String(sz),
+          hash: `0x${print.tid}`,
+          ...print,
+        })),
       ),
   }
 }

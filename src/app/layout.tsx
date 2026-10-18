@@ -1,18 +1,18 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Funnel_Sans } from "next/font/google"
 import type { ReactNode } from "react"
 import "./globals.css"
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] })
+const funnel = Funnel_Sans({ variable: "--font-funnel", subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Order book",
-  description: "Live Hyperliquid order book for BTC and ETH",
+  title: "Fullstack | Trade",
+  description: "Live order book and market search on Hyperliquid perps, in Fullstack's trading layout",
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`dark ${inter.variable} antialiased`}>
+    <html lang="en" className={`dark ${funnel.variable} antialiased`}>
       <body>{children}</body>
     </html>
   )

@@ -85,7 +85,8 @@ export function inPageFeed() {
       px: `${bid}.0`,
       sz: "0.01",
       time: 1,
-      tid: tid++,
+      tid: tid,
+      hash: `0x${tid++}`,
     })
     messages.push(
       i % 4 === 3

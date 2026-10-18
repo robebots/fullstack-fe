@@ -4,6 +4,7 @@ export type Subscription =
   | { type: "l2Book"; coin: Coin; nSigFigs?: number; mantissa?: number; fast?: true }
   | { type: "bbo"; coin: Coin }
   | { type: "trades"; coin: Coin }
+  | { type: "activeAssetCtx"; coin: Coin }
 
 export type Status = "connecting" | "live"
 
@@ -67,6 +68,10 @@ export class Feed {
     )
     socket.send(JSON.stringify({ method: "post", id, request: { type: "info", payload } }))
     return reply
+  }
+
+  get status() {
+    return this.#status
   }
 
   onStatus(listener: (status: Status) => void) {

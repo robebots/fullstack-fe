@@ -1,5 +1,5 @@
-import { Showcase } from "@/components/showcase"
+import { redirect } from "next/navigation"
 
-export default function Page() {
-  return <Showcase />
+export default function Home() {
+  redirect("/trade/BTC")
 }

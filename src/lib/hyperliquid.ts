@@ -1,11 +1,4 @@
-export const MARKETS = {
-  BTC: { szDecimals: 5, maxLeverage: 40, color: "#f7931a" },
-  ETH: { szDecimals: 4, maxLeverage: 25, color: "#627eea" },
-} as const
-
-export type Coin = keyof typeof MARKETS
-
-export const COINS = Object.keys(MARKETS) as Coin[]
+export type Coin = string
 
 export type Precision = { id: string; nSigFigs: 2 | 3 | 4 | 5 | null; mantissa?: 2 | 5 }
 
@@ -25,7 +18,7 @@ export type Book = { coin: Coin; time: number; levels: [Level[], Level[]]; fast?
 
 export type Bbo = { coin: Coin; time: number; bbo: [Level | null, Level | null] }
 
-export type Trade = { coin: Coin; side: "A" | "B"; px: string; sz: string; time: number; tid: number }
+export type Trade = { coin: Coin; side: "A" | "B"; px: string; sz: string; time: number; tid: number; hash: string }
 
 export const magnitudeOf = (price: number) => Math.floor(Math.log10(price))
 
