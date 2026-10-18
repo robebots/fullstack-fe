@@ -2,7 +2,7 @@ import { OrderBook } from "@/components/order-book"
 
 export default function Page() {
   return (
-    <main className="grid min-h-dvh place-items-center p-4">
+    <main className="mx-auto w-full max-w-[379px] py-3.5">
       <OrderBook />
     </main>
   )

@@ -45,7 +45,18 @@ At the screenshot's scale the row pitch is about 36.5 px, bars are 28 px tall an
 - The unit toggle switches size and total between the coin and USD.
 - The `Trades` tab means a trades view lives next to the book.
 
-## Open design calls
+## Measured layout at 1x
 
-- Row density. The example's 36.5 px rows fit 12 levels per side in a phone-sized panel. The feed gives 20 per side, so a desktop panel should fill its height.
-- Price color. Binance colors prices by side, and the example keeps them white. Default to the example.
+| Element | Mock |
+|---|---|
+| Canvas | `#444444`, cards 379 px wide |
+| Header card | 80 px tall. 36 px coin icon at 22 px from the left. Pair name at 22 px, "Perpetuals" at 15 px. Leverage chip 35 px tall on `#262626`. Menu icon at the right. |
+| Section title | "Orders", 22 px, `#ababab`, between the cards |
+| Tabs | 52 px tall, two halves, labels at 17 px, a 3 px `#e25727` underline 9 px wider than the label on each side |
+| Column header | 56 px tall, 13 px text. Price at 20 px, Size left-aligned at 164 px, Total right-aligned 16 px from the edge. |
+| Rows | 36.5 px pitch, 28 px bars inset 4 px, 16 px white text |
+| Spread row | 35 px on `#262626`. Label and percentage grey, value white. |
+| Footer | 56 px, 16 px text. Precision with a chevron on the left, USD and coin as plain text on the right, active one white. |
+| Type | Inter. It matched the mock's text proportions within 2%, closer than nine other fonts we tested. |
+
+The live widget sits within 1 to 5 px of these numbers, measured from a 1x screenshot at 418 x 1222.

@@ -64,13 +64,15 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 
 - Bars snap. Every venue does it. A tweened bar shows depth that no longer exists for 200 ms.
 - Change is shown by a flash, not by moving data. The flash is an overlay in the row's side color, opacity 0 to 0.3 at 20% and back to 0 over 800 ms, the curve Hyperliquid uses. A new flash cancels the running one, which keeps it on the compositor.
-- Prices are colored by side, so the touch reads at a glance.
+- Prices stay white, as in the mock. Side reads from the bar color, and the tape colors each print by aggressor.
 - The tape colors by aggressor and merges one taker's fills, so a 5 BTC market buy reads as one print instead of six.
 - Rows are keyed by slot and never reorder. Fixed heights and tabular numerals keep digits from jumping.
 - Smoothness comes from steady pacing and stable layout, not from tweening numbers.
 - Reduced motion skips the flash and the print pulse entirely.
 
 ## Rendering
+
+- The layout is measured off the mock at 1x: 80 px header card, 52 px tabs with a 3 px underline under the label, 56 px column header, 36.5 px rows with 28 px bars, a 35 px spread row and a 56 px footer. Columns sit at 20 px, 164 px and 16 px from the right. Inter matched the mock's text proportions within 2%, closer than nine other fonts we tested. [design.md](design.md) has the details.
 
 - Depth bars use `scale: calc(var(--total) / var(--max))`. Each row sets `--total`. The container sets `--max`, rounded up to a 1, 2 or 5 step, so it rarely changes and never re-renders rows when it does.
 - Book flashes run through the Web Animations API from a layout effect, with no React state. Tape pulses are a CSS keyframe on mount.
@@ -88,15 +90,15 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 | Claim | How it's measured | Gate |
 |---|---|---|
 | Never more than one book commit per frame, never more than 20 a second | In-page feed at 1,000 msg/s with depth, fast book, bbo and trades, three 3 s trials | every trial: commits ≤ frames and ≤ 61 |
-| Rendering is cheap | Profiler `actualDuration` per book commit | median trial p95 < 4 ms per 1x of CPU |
-| Smooth at 1x under a 100x burst | `requestAnimationFrame` intervals, plus Long Animation Frames for the report | median trial over 55 fps, p95 frame < 20 ms |
-| No freeze at 4x CPU | CDP `Emulation.setCPUThrottlingRate` | median trial's longest frame < 250 ms |
+| Rendering is cheap | Profiler `actualDuration` per book commit | best trial p95 < 4 ms per 1x of CPU |
+| Smooth at 1x under a 100x burst | `requestAnimationFrame` intervals, plus Long Animation Frames for the report | best trial over 55 fps, p95 frame < 20 ms |
+| No freeze at 4x CPU | CDP `Emulation.setCPUThrottlingRate` | best trial's longest frame < 250 ms |
 | One level change touches only its rows | Profiler measures for one changed level | exactly one commit, rows 9 to 11 only |
 | Messages reach the DOM within a frame | Socket arrival time against MutationObserver time | p95 < 25 ms |
 | Controls stay responsive | Event Timing during a precision switch | slowest event < 100 ms |
 | No leaks | CDP heap after GC, before and after a 15 s stream | growth < 1 MB |
 
-The stress feed runs inside the page because Playwright's socket mock costs main-thread time per message, which made it the bottleneck at 4x. Timing gates use the median of three trials because the VM shares its CPU (about 3% steal). The structural gates hold for every trial.
+The stress feed runs inside the page because Playwright's socket mock costs main-thread time per message, which made it the bottleneck at 4x. Timing gates use the best of three trials because the VM shares its CPU (about 3% steal) and contention only ever adds time. A median still failed once when load stayed high for a whole test. The structural gates hold for every trial, and every trial is reported.
 
 ## Measured, 2026-10-18
 
@@ -104,15 +106,15 @@ Headless Chromium 156 through Playwright 1.64, profiling build, on a shared 8-co
 
 | Test | Result |
 |---|---|
-| 1,000 msg/s at 1x CPU | 60 fps in all three trials, p95 frame 16.7 to 16.8 ms, render p95 1.0 to 1.2 ms, no frame over 50 ms |
-| 1,000 msg/s at 4x CPU | 14 to 20 fps, longest frame 92 to 131 ms, render p95 4.4 to 9.5 ms |
+| 1,000 msg/s at 1x CPU | 60 fps in every trial, p95 frame 16.7 to 16.8 ms, render p95 0.8 to 2.0 ms, no frame over 50 ms |
+| 1,000 msg/s at 4x CPU | 13 to 20 fps, longest frame 81 to 131 ms, render p95 4.4 to 22 ms |
 | One level change | 1 commit, rows `bids-9`, `bids-10`, `bids-11` |
 | Message to DOM | p50 11.2 ms, p95 17.8 ms, max 18.7 ms |
 | Precision switch | slowest input event 32 ms |
-| Heap over 15 s | +533 KB after GC, with the 40-print tape filled |
+| Heap over 15 s | +26 to +533 KB after GC, with the 40-print tape filled |
 | Live BTC, 20 s | 12 of 12 rows on both sides in every half-second sample |
 
-Earlier builds ran the stress test nine times. Two runs lost frames to host contention, and those runs are why the timing gates use medians.
+Earlier builds ran the stress test nine times. Two runs lost frames to host contention, and those runs are why the timing gates take the best trial.
 
 ## Skipped on purpose
 

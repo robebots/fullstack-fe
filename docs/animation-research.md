@@ -28,7 +28,7 @@ None of them use an animation library. Every production venue snaps its bars. Fl
 
 - Bars snap. A bar is a number, and every venue shows the number as it is. A 200 ms tween showed depth that no longer existed, so it went.
 - Flashes copy Hyperliquid: an overlay in the row's side color, opacity 0 to 0.3 at 20% and back to 0 over 800 ms. Opacity on an overlay stays on the compositor. A new flash cancels the running one, because overlapping animations fall back to the main thread.
-- Prices are colored by side, as on Hyperliquid and Binance.
+- Prices stay white because the mock has them white. Hyperliquid and Binance color them by side, but the mock wins.
 - With reduced motion on, the flash call is skipped entirely, like dYdX's gate.
 - The trades tab copies the Hyperliquid tab: price colored by aggressor, size, time. New prints get the same side-colored pulse through a CSS keyframe that runs once when the row mounts. Rows are keyed by trade id, so only new prints animate.
 - No animation library. Nobody uses one for this.

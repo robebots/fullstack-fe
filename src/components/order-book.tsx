@@ -2,6 +2,7 @@
 
 import { cn } from "cn"
 import { useAtom, useAtomValue } from "jotai"
+import { Menu } from "lucide-react"
 import {
   type ComponentProps,
   type CSSProperties,
@@ -30,9 +31,20 @@ const FLASH: PropertyIndexedKeyframes = { opacity: [0, 0.3, 0], offset: [0, 0.2,
 
 const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
+const grid = "grid grid-cols-[144px_1fr_auto] items-center pr-4 pl-5"
+
+const row = cn(grid, "relative h-[36.5px] text-base contain-content")
+
+const bar = "absolute inset-x-0 inset-y-1 origin-left"
+
 const stacked = "[grid-area:1/1] data-hidden:invisible"
 
+const tab =
+  "h-full flex-none justify-self-center rounded-none px-[9px] text-[17px] font-normal after:bottom-0 after:h-[3px] after:bg-brand"
+
 const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
+
+const plain = "h-auto border-none bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent"
 
 const onRender: ProfilerOnRenderCallback = (id, _phase, duration, _base, start) => {
   if (process.env.NEXT_PUBLIC_PROFILE) performance.measure(id, { start, duration })
@@ -47,69 +59,87 @@ const niceCeil = (value: number) => {
 }
 
 export function OrderBook() {
+  const status = useAtomValue(statusAtom)
   return (
-    <section
-      aria-label="Order book"
-      className="w-full max-w-[380px] overflow-hidden rounded-xl border bg-card text-sm tabular-nums"
-    >
+    <>
       <Header />
-      <Tabs defaultValue="orders" className="gap-0">
-        <TabsList variant="line" className="h-10 w-full justify-start gap-5 rounded-none border-b px-3">
-          <TabsTrigger value="orders" className="flex-none px-0 after:bg-brand">
-            Orders
-          </TabsTrigger>
-          <TabsTrigger value="trades" className="flex-none px-0 after:bg-brand">
-            Trades
-          </TabsTrigger>
-        </TabsList>
-        <div className="grid">
-          <TabsContent value="orders" keepMounted render={panel} className={stacked}>
-            <Profiler id="book" onRender={onRender}>
-              <Columns last="Total" />
-              <Depth>
-                <Side side="asks" />
-                <Spread />
-                <Side side="bids" />
-              </Depth>
-              <Imbalance />
-              <Footer />
-            </Profiler>
-          </TabsContent>
-          <TabsContent
-            value="trades"
-            keepMounted
-            render={panel}
-            className={cn(stacked, "overflow-hidden contain-size")}
+      <h2 className="pt-3 pb-[13px] text-[22px] leading-7 text-[#ababab]">Orders</h2>
+      <section
+        aria-label="Order book"
+        data-testid="status"
+        data-status={status}
+        className="overflow-hidden rounded-[10px] border bg-card tabular-nums transition-opacity data-[status=connecting]:opacity-60"
+      >
+        <Tabs defaultValue="orders" className="gap-0">
+          <TabsList
+            variant="line"
+            className="grid w-full grid-cols-2 rounded-none border-b border-muted p-0 pr-5 group-data-horizontal/tabs:h-[52px]"
           >
-            <Profiler id="tape" onRender={onRender}>
-              <Columns last="Time" />
-              <Tape />
-            </Profiler>
-          </TabsContent>
-        </div>
-      </Tabs>
-    </section>
+            <TabsTrigger value="orders" className={tab}>
+              Orders
+            </TabsTrigger>
+            <TabsTrigger value="trades" className={tab}>
+              Trades
+            </TabsTrigger>
+          </TabsList>
+          <div className="grid">
+            <TabsContent value="orders" keepMounted render={panel} className={stacked}>
+              <Profiler id="book" onRender={onRender}>
+                <Columns last="Total" />
+                <Depth>
+                  <Side side="asks" />
+                  <Spread />
+                  <Side side="bids" />
+                </Depth>
+                <Footer />
+              </Profiler>
+            </TabsContent>
+            <TabsContent
+              value="trades"
+              keepMounted
+              render={panel}
+              className={cn(stacked, "overflow-hidden contain-size")}
+            >
+              <Profiler id="tape" onRender={onRender}>
+                <Columns last="Time" />
+                <Tape />
+              </Profiler>
+            </TabsContent>
+          </div>
+        </Tabs>
+      </section>
+    </>
   )
 }
 
 function Header() {
   const [coin, setCoin] = useAtom(coinAtom)
-  const status = useAtomValue(statusAtom)
-  const last = useTrades((tape) => tape[0])
+  const market = MARKETS[coin]
   return (
-    <header className="flex items-center justify-between border-b px-3 py-2.5">
+    <header className="flex h-20 items-center gap-3.5 rounded-[10px] border bg-card pr-[26px] pl-[22px]">
+      <span
+        aria-hidden
+        className="grid size-9 rotate-[14deg] place-items-center rounded-full text-[22px] font-semibold text-white"
+        style={{ backgroundColor: market.color }}
+      >
+        {market.glyph}
+      </span>
+      <div className="flex-1 leading-none">
+        <div className="text-[22px]">{coin}-USD</div>
+        <div className="mt-2 text-[15px] text-muted-foreground">Perpetuals</div>
+      </div>
+      <span className="grid h-[35px] place-items-center rounded-lg bg-muted px-[11px] text-base">
+        {market.maxLeverage}×
+      </span>
       <Select
         items={COINS.map((value) => ({ value, label: `${value}-USD` }))}
         value={coin}
         onValueChange={(value) => value && setCoin(value)}
       >
-        <SelectTrigger
-          aria-label="Market"
-          className="border-none bg-transparent px-0 text-base font-medium dark:bg-transparent"
-        >
-          <SelectValue />
+        <SelectTrigger aria-label="Market" className={cn(plain, "ml-[5px] text-muted-foreground *:last:hidden")}>
+          <Menu className="size-5" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="end" alignItemWithTrigger={false}>
           {COINS.map((value) => (
             <SelectItem key={value} value={value}>
               {value}-USD
@@ -117,17 +147,6 @@ function Header() {
           ))}
         </SelectContent>
       </Select>
-      <div className="flex items-center gap-2">
-        <span data-testid="last" className={cn("font-medium", last?.buy ? "text-bid" : "text-ask")}>
-          {last ? formatNumber(last.px, 0, 6) : ""}
-        </span>
-        <span
-          data-testid="status"
-          data-status={status}
-          title={status === "live" ? "Live" : "Connecting"}
-          className={cn("size-2 rounded-full", status === "live" ? "bg-bid" : "animate-pulse bg-amber-400")}
-        />
-      </div>
     </header>
   )
 }
@@ -136,9 +155,9 @@ function Columns({ last }: { last: "Total" | "Time" }) {
   const coin = useAtomValue(coinAtom)
   const unit = useAtomValue(unitAtom) === "usd" ? "USD" : coin
   return (
-    <div className="grid grid-cols-3 px-3 py-2 text-xs text-muted-foreground">
+    <div className={cn(grid, "h-14 text-[13px] text-muted-foreground")}>
       <span>Price</span>
-      <span className="text-right">Size ({unit})</span>
+      <span>Size ({unit})</span>
       <span className="text-right">{last === "Total" ? `Total (${unit})` : "Time"}</span>
     </div>
   )
@@ -159,7 +178,7 @@ function usePriceDecimals() {
 function Side({ side }: { side: "asks" | "bids" }) {
   const decimals = usePriceDecimals()
   return (
-    <div data-testid={side} className={cn("flex gap-px", side === "asks" ? "flex-col-reverse" : "flex-col")}>
+    <div data-testid={side} className={cn("flex", side === "asks" ? "flex-col-reverse" : "flex-col")}>
       {SLOTS.map((slot) => (
         <Profiler key={slot} id={`${side}-${slot}`} onRender={onRender}>
           <BookRow side={side} index={slot} decimals={decimals} />
@@ -170,38 +189,30 @@ function Side({ side }: { side: "asks" | "bids" }) {
 }
 
 function BookRow({ side, index, decimals }: { side: "asks" | "bids"; index: number; decimals: number }) {
-  const row = useBook((view) => view[side][index])
+  const level = useBook((view) => view[side][index])
   const { szDecimals } = MARKETS[useAtomValue(coinAtom)]
   const usd = useAtomValue(unitAtom) === "usd"
   const flash = useRef<HTMLDivElement>(null)
   const animation = useRef<Animation>(undefined)
-  const flashAt = row?.flashAt ?? 0
+  const flashAt = level?.flashAt ?? 0
   useLayoutEffect(() => {
     if (calm || !flash.current || performance.now() - flashAt > 100) return
     animation.current?.cancel()
     animation.current = flash.current.animate(FLASH, 800)
   }, [flashAt])
-  if (!row) return <div className="h-7 contain-strict" />
+  if (!level) return <div className="h-[36.5px] contain-strict" />
   return (
-    <div
-      className="relative grid h-7 grid-cols-3 items-center px-3 contain-content"
-      style={{ "--total": row.total } as CSSProperties}
-    >
+    <div className={row} style={{ "--total": level.total } as CSSProperties}>
       <div
-        className={cn(
-          "absolute inset-0 origin-left scale-x-[calc(var(--total)/var(--max))]",
-          side === "asks" ? "bg-ask-bar" : "bg-bid-bar",
-        )}
+        className={cn(bar, "scale-x-[calc(var(--total)/var(--max))]", side === "asks" ? "bg-ask-bar" : "bg-bid-bar")}
       />
-      <div ref={flash} className={cn("absolute inset-0 opacity-0", side === "asks" ? "bg-ask" : "bg-bid")} />
-      <span className={cn("relative", side === "asks" ? "text-ask" : "text-bid")}>
-        {formatNumber(row.px, decimals)}
+      <div ref={flash} className={cn(bar, "opacity-0", side === "asks" ? "bg-ask" : "bg-bid")} />
+      <span className="relative">{formatNumber(level.px, decimals)}</span>
+      <span className="relative">
+        {usd ? formatNumber(level.px * level.sz, 0) : formatNumber(level.sz, szDecimals)}
       </span>
       <span className="relative text-right">
-        {usd ? formatNumber(row.px * row.sz, 0) : formatNumber(row.sz, szDecimals)}
-      </span>
-      <span className="relative text-right">
-        {usd ? formatNumber(row.totalUsd, 0) : formatNumber(row.total, szDecimals)}
+        {usd ? formatNumber(level.totalUsd, 0) : formatNumber(level.total, szDecimals)}
       </span>
     </div>
   )
@@ -211,33 +222,12 @@ function Spread() {
   const touch = useBook((view) => (view.bid && view.ask ? { bid: view.bid, ask: view.ask } : undefined))
   const spread = touch ? touch.ask - touch.bid : undefined
   return (
-    <div
-      data-testid="spread"
-      className="my-px grid h-8 grid-cols-3 items-center bg-muted px-3 text-xs text-muted-foreground"
-    >
+    <div data-testid="spread" className={cn(grid, "my-[3px] h-[35px] bg-muted text-[15px] text-muted-foreground")}>
       <span>Spread</span>
-      <span className="text-right">{spread === undefined ? "" : formatNumber(spread, 0, 6)}</span>
+      <span className="text-foreground">{spread === undefined ? "" : formatNumber(spread, 0, 6)}</span>
       <span className="text-right">
         {touch && spread !== undefined ? `${formatNumber((200 * spread) / (touch.bid + touch.ask), 3)}%` : ""}
       </span>
-    </div>
-  )
-}
-
-function Imbalance() {
-  const share = useBook((view) => {
-    const bids = depthOf(view.bids)
-    const asks = depthOf(view.asks)
-    return bids + asks ? Math.round((100 * bids) / (bids + asks)) : undefined
-  })
-  if (share === undefined) return <div className="h-8 border-t" />
-  return (
-    <div data-testid="imbalance" className="flex h-8 items-center gap-2 border-t px-3 text-xs">
-      <span className="w-10 text-bid">B {share}%</span>
-      <div className="h-1 flex-1 overflow-hidden rounded-full bg-ask/60">
-        <div className="h-full origin-left bg-bid" style={{ scale: `${share / 100} 1` }} />
-      </div>
-      <span className="w-10 text-right text-ask">{100 - share}% S</span>
     </div>
   )
 }
@@ -254,17 +244,24 @@ function Footer() {
       ? `${option.precision.nSigFigs} sig figs${option.precision.mantissa ? ` ×${option.precision.mantissa}` : ""}`
       : "full",
   }))
+  const unitClass = cn(
+    plain,
+    "min-w-0 text-base font-normal text-muted-foreground aria-pressed:bg-transparent aria-pressed:text-foreground hover:bg-transparent",
+  )
   return (
-    <footer className="flex items-center justify-between border-t px-3 py-2">
+    <footer className="flex h-14 items-center justify-between pr-5 pl-5">
       <Select
         items={options}
         value={precision.id}
         onValueChange={(id) => setPrecision(PRECISIONS.find((p) => p.id === id) ?? precision)}
       >
-        <SelectTrigger aria-label="Precision" size="sm" className="min-w-20">
+        <SelectTrigger
+          aria-label="Precision"
+          className={cn(plain, "gap-2 text-base text-muted-foreground [&>svg]:rotate-180")}
+        >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent side="top" align="start" alignItemWithTrigger={false}>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               <span>{option.label}</span>
@@ -275,12 +272,16 @@ function Footer() {
       </Select>
       <ToggleGroup
         aria-label="Units"
-        size="sm"
+        spacing={4}
         value={[unit]}
         onValueChange={([next]) => next && setUnit(next === "usd" ? "usd" : "coin")}
       >
-        <ToggleGroupItem value="usd">USD</ToggleGroupItem>
-        <ToggleGroupItem value="coin">{coin}</ToggleGroupItem>
+        <ToggleGroupItem value="usd" className={unitClass}>
+          USD
+        </ToggleGroupItem>
+        <ToggleGroupItem value="coin" className={unitClass}>
+          {coin}
+        </ToggleGroupItem>
       </ToggleGroup>
     </footer>
   )
@@ -290,7 +291,7 @@ function Tape() {
   const tape = useTrades((prints) => prints)
   const largest = useTrades((prints) => Math.max(0, ...prints.map((print) => print.sz)))
   return (
-    <div data-testid="trades" className="flex flex-col gap-px" style={{ "--max": largest || 1 } as CSSProperties}>
+    <div data-testid="trades" className="flex flex-col" style={{ "--max": largest || 1 } as CSSProperties}>
       {tape?.map((print) => (
         <TapeRow key={print.id} print={print} />
       ))}
@@ -303,27 +304,13 @@ const TapeRow = memo(function TapeRow({ print }: { print: Print }) {
   const usd = useAtomValue(unitAtom) === "usd"
   const decimals = decimalsOf(tickSize(PRECISIONS[0], magnitudeOf(print.px), szDecimals))
   return (
-    <div
-      data-side={print.buy ? "buy" : "sell"}
-      className="relative grid h-7 grid-cols-3 items-center px-3 contain-content"
-      style={{ "--size": print.sz } as CSSProperties}
-    >
-      <div
-        className={cn(
-          "absolute inset-0 origin-left scale-x-[calc(var(--size)/var(--max))]",
-          print.buy ? "bg-bid-bar" : "bg-ask-bar",
-        )}
-      />
+    <div data-side={print.buy ? "buy" : "sell"} className={row} style={{ "--size": print.sz } as CSSProperties}>
+      <div className={cn(bar, "scale-x-[calc(var(--size)/var(--max))]", print.buy ? "bg-bid-bar" : "bg-ask-bar")} />
       {print.fresh && (
-        <div
-          className={cn(
-            "absolute inset-0 animate-print opacity-0 motion-reduce:hidden",
-            print.buy ? "bg-bid" : "bg-ask",
-          )}
-        />
+        <div className={cn(bar, "animate-print opacity-0 motion-reduce:hidden", print.buy ? "bg-bid" : "bg-ask")} />
       )}
       <span className={cn("relative", print.buy ? "text-bid" : "text-ask")}>{formatNumber(print.px, decimals)}</span>
-      <span className="relative text-right">
+      <span className="relative">
         {usd ? formatNumber(print.px * print.sz, 0) : formatNumber(print.sz, szDecimals)}
       </span>
       <span className="relative text-right text-muted-foreground">{formatTime(print.time)}</span>

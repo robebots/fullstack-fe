@@ -109,7 +109,7 @@ test("USD toggle shows notional size and total", async ({ page }) => {
   await expect(cells(page, "bids", 1)).toHaveText(["80,999", "161,998", "242,998"])
 })
 
-test("tape shows aggressor side, merges one taker's fills and puts the last print in the header", async ({ page }) => {
+test("tape shows aggressor side and merges one taker's fills", async ({ page }) => {
   const feed = await openBook(page)
   const at = Date.UTC(2026, 9, 18, 12, 0, 5)
   feed.trades("BTC", [
@@ -129,7 +129,6 @@ test("tape shows aggressor side, merges one taker's fills and puts the last prin
   await expect(rows.nth(1).locator("span").nth(1)).toHaveText("0.30000")
   await expect(rows.nth(1)).toHaveAttribute("data-side", "buy")
   await expect(rows.nth(3)).toHaveAttribute("data-side", "sell")
-  await expect(page.getByTestId("last")).toHaveText("81,001")
 })
 
 test("both tabs keep streaming while hidden", async ({ page }) => {
