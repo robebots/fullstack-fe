@@ -40,6 +40,7 @@ Details, budgets and the 4x CPU numbers are in [docs/architecture.md](docs/archi
 
 - [Architecture](docs/architecture.md)
 - [Hyperliquid feed notes](docs/hyperliquid-feed.md), measured against mainnet
+- [Animation research](docs/animation-research.md), how Hyperliquid, dYdX, Serum and Mango animate their books
 - [Design reference](docs/design.md)
 - [Brief](docs/brief.md)
 
