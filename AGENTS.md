@@ -1,13 +1,13 @@
 # fullstack-fe
 
-Live order book on Hyperliquid's `l2Book` websocket feed. Take-home for a frontend role at Fullstack, with a three-day time box.
+A Fullstack trade page around a live order book on Hyperliquid's websocket feed. Take-home for a frontend role at Fullstack, with a three-day time box. Live at https://fullstack-fe-five.vercel.app, and every push to main deploys.
 
 ## Read first
 
 - [docs/brief.md](docs/brief.md) is the assignment, verbatim. Requirements come from there.
 - [docs/architecture.md](docs/architecture.md) describes the build, the performance gates and the measured results. Change it when a decision changes.
 - [docs/hyperliquid-feed.md](docs/hyperliquid-feed.md) has the wire format and measured feed behavior. The default `l2Book` pushes only every ~5.4 s.
-- [docs/design.md](docs/design.md) has the palette and layout sampled from the reference screenshot.
+- [docs/design.md](docs/design.md) has Fullstack's brand tokens and the Hyperliquid layout the page follows.
 
 ## Hard requirements
 
@@ -16,7 +16,7 @@ Live order book on Hyperliquid's `l2Book` websocket feed. Take-home for a fronte
 - A live demo page that can be shared.
 - Code on GitHub.
 - React or Next.js, with no excessive re-renders.
-- Colors and theme close to [docs/reference/example-orderbook.png](docs/reference/example-orderbook.png).
+- Colors and theme close to Fullstack's. The owner later directed the page toward Hyperliquid's layout in Fullstack's brand from fullstack.trade.
 
 ## Stack
 
@@ -25,10 +25,12 @@ Next.js 16 App Router with the React Compiler, TanStack Query for server state, 
 ## Rules
 
 - No comments in code.
-- YAGNI means no bloat and no dumb decisions. Everything in the mock ships, built with the least code that does it right.
+- YAGNI means no bloat and no dumb decisions. Real features get built right with the least code. Page pieces outside the book are scaffolds and say so.
 - The socket and the book engine stay out of React, in `src/lib`. Components read through `useBook(select)`.
 - `OrderBook` is the widget and owns its providers. Pages only place it. State that differs per widget lives in its Jotai store.
-- Density follows the pointer (`pointer-fine:`), not the viewport width. Phones match the mock.
+- Page layout follows the width, like Hyperliquid's: `lg:` is the desktop page, below it the mobile view. `pointer-coarse:` only enlarges rows and text.
+- Hover effects never add per-row state or `:has()` selectors. The sweep tint is one overlay measured on pointer enter; a per-row `:has()` tripled message-to-DOM p95 under stress.
+- Markets come from `metaAndAssetCtxs`. A coin must be in that list before anything subscribes to it.
 - A row renders only when its own level changed. `e2e/perf.spec.ts` checks this, so keep it green.
 - Validate every subscription before sending it. The server drops the socket on bad params and sends no error.
 - Data snaps; only feedback animates. Animate `opacity` on overlays, cancel the running animation before starting another, and skip animation under `prefers-reduced-motion`.
