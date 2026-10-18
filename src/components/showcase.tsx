@@ -9,7 +9,7 @@ export function Showcase() {
   const [selection, setSelection] = useState<PriceSelection>()
   return (
     <main className="h-dvh">
-      <div className="mx-auto h-full max-w-[379px] py-3.5 lg:pointer-fine:hidden">
+      <div className="mx-auto h-full max-w-[379px] pt-3.5 pb-px lg:pointer-fine:hidden">
         <OrderBook market="BTC" />
       </div>
       <div className="hidden h-full items-center justify-center gap-1 lg:pointer-fine:flex">

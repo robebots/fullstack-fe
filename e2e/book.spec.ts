@@ -188,7 +188,7 @@ test("imbalance line follows visible depth", async ({ page }) => {
   await expect(page.getByTestId("imbalance")).toHaveAttribute("data-share", "75")
 })
 
-test("rows fill the height the widget is given", async ({ page }) => {
+test("rows fill the height the widget is given", async ({ page, isMobile }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 700 })
@@ -202,9 +202,8 @@ test("rows fill the height the widget is given", async ({ page }) => {
       elements.map((element) => element.getBoundingClientRect().height),
     )
     const gap = (box?.height ?? 0) - heights.reduce((sum, height) => sum + height, 0)
-    expect(heights.every(Number.isInteger)).toBe(true)
-    expect(gap).toBeGreaterThanOrEqual(0)
-    expect(gap).toBeLessThan(heights.length)
+    expect(gap).toBeGreaterThan(-0.5)
+    expect(gap).toBeLessThan(isMobile ? 0.5 : heights.length)
   }
 })
 

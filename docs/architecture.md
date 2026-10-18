@@ -77,7 +77,7 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 - Change is shown by a flash, not by moving data. The flash is an overlay in the row's side color that peaks at 20% of 800 ms and fades out, the curve Hyperliquid uses. Its peak opacity runs from 0.08 to 0.35 with `pulse`, so a top-up blinks and a pulled wall flares. A new flash cancels the running one, which keeps it on the compositor.
 - Prices stay white, as in the mock. Side reads from the bar color, and the tape colors each print by aggressor.
 - The tape merges one taker's fills, so a 5 BTC market buy reads as one print instead of six.
-- Rows are keyed by slot and never reorder. Whole-pixel row heights and tabular numerals keep digits from jumping.
+- Rows are keyed by slot and never reorder, so a price never jumps to another line.
 - Smoothness comes from steady pacing and stable layout, not from tweening numbers.
 - Reduced motion skips the flash and the print pulse entirely.
 
@@ -89,9 +89,9 @@ The brief asks for liveness, smoothness, readability and information. A trader j
 
 ## Rendering
 
-- Phones follow the mock, measured at 1x: 80 px header card, 52 px tabs with a 3 px underline under the label, 56 px column header, rows sized from the mock's 36.5 px pitch with bars inset 4 px, a 35 px spread row and a 56 px footer. Inter matched the mock's text proportions within 2%, closer than nine other fonts we tested. [design.md](design.md) has the details.
+- Phones follow the mock, measured at 1x with its colors converted from Display P3 to sRGB: 80 px header card, 52 px tabs over a dotted rule, 56 px column header, 36.45 px rows with bars inset 4 px, a 35 px spread row and a 52 px footer. Price and size use proportional digits like the mock. Inter matched the mock's text proportions within 2%, closer than nine other fonts we tested. [design.md](design.md) has the details.
 - Density follows the pointer, not the width. Tailwind's `pointer-fine:` variants switch the same components to Hyperliquid's desktop book: rows of at least 23 px, 12 px type, controls on top. A touch tablet keeps finger-sized rows.
-- Rows fit the height. A `ResizeObserver` on the ask side divides its height by the minimum row height to get 1 to 20 rows a side, then gives every row the same whole-pixel pitch. Fractional pitches left 1 px seams between bars, because the scaled bars snap to different pixels.
+- Rows fit the height. A `ResizeObserver` on the ask side divides its height by the minimum row height (36 px on touch, 23 px with a mouse) to get 1 to 20 rows a side. On touch the rows split the height exactly, the way the mock fits 12 rows at 36.45 px. With a mouse every row gets the same whole-pixel pitch instead, because Hyperliquid's bars touch and fractional row edges left 1 px seams between them.
 - Depth bars use `scale: calc(var(--total) / var(--max))`, and the wall layer uses `--size`. Each row sets its own variables. The container sets `--max`, rounded up to a 1, 2 or 5 step, so it rarely changes and never re-renders rows when it does.
 - Book flashes run through the Web Animations API from a layout effect, with no React state. Tape pulses are a CSS keyframe on mount.
 - Rows use `contain: content`. Tape rows are memoized because the list prepends.
@@ -124,15 +124,15 @@ Headless Chromium 156 through Playwright 1.64, profiling build, on a shared 8-co
 
 | Test | Result |
 |---|---|
-| 1,000 msg/s at 1x CPU | 60 fps in 5 of 6 trials with p95 frame 16.7 to 16.8 ms. One trial hit 55 fps, longest frame 84 ms. Render p95 0.8 to 2.0 ms. |
-| 1,000 msg/s at 4x CPU | 11 to 13 fps, longest frame 116 to 210 ms, render p95 4.7 to 18.7 ms |
+| 1,000 msg/s at 1x CPU | 60 fps in all 6 trials, p95 frame 16.7 to 16.8 ms, no long frames. Render p95 0.6 to 1.9 ms. |
+| 1,000 msg/s at 4x CPU | 7 to 14 fps, longest frame 136 to 178 ms in five trials and 494 ms in one desktop trial under host contention. Render p95 3.7 to 10 ms, 49 ms in that trial. |
 | One level change | 1 commit. Rows `bids-2` to `bids-5` with 6 rows on screen, `bids-2` to `bids-10` with 11. |
-| Message to DOM | p50 10.9 to 11.0 ms, p95 17.8 to 18.1 ms, max 18.7 to 19.3 ms |
-| Precision switch | slowest input event 32 ms |
-| Heap over 15 s | -168 to +228 KB after GC, with the 40-print tape filled |
+| Message to DOM | p50 10.8 to 11.8 ms, p95 17.8 to 19.0 ms, max 18.4 to 20.5 ms |
+| Precision switch | slowest input event 32 to 40 ms |
+| Heap over 15 s | +153 to +562 KB after GC, with the 40-print tape filled |
 | Live BTC, 20 s | 12 of 12 rows on both sides in every half-second sample |
 
-The wall layer costs paint, not React. Without it the 4x run did 13 to 17 fps with a longest frame of 97 to 142 ms, against 11 to 13 fps and 116 to 210 ms with it. At 1x it holds 60 fps either way, and this VM rasterizes on the CPU, so a real GPU narrows the gap. It stays because it shows walls.
+The wall layer costs paint, not React. In an A/B run without it, the 4x stress did 13 to 17 fps with a longest frame of 97 to 142 ms, against 11 to 13 fps and 116 to 210 ms with it. At 1x it holds 60 fps either way, and this VM rasterizes on the CPU, so a real GPU narrows the gap. It stays because it shows walls.
 
 Earlier builds ran the stress test nine times. Two runs lost frames to host contention, and those runs are why the timing gates take the best trial.
 

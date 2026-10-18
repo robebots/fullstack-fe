@@ -77,13 +77,13 @@ Measured on headless Chromium in a shared VM with no GPU, profiling build:
 
 | Claim | Result |
 |---|---|
-| A 1,000 msg/s burst holds 60 fps | 60 fps and p95 frame 16.7 to 16.8 ms in 5 of 6 trials. One trial dipped to 55 fps, longest frame 84 ms. |
+| A 1,000 msg/s burst holds 60 fps | 60 fps in all 6 trials, p95 frame 16.7 to 16.8 ms |
 | React commits at most once per frame and 20 times a second | 15 book commits a second at 1,000 msg/s |
-| A commit is cheap | p95 0.8 to 2.0 ms |
+| A commit is cheap | p95 0.6 to 1.9 ms |
 | One level change re-renders only the rows that show it | 1 commit: the changed row and the rows deeper than it |
-| A message reaches the DOM within a frame | p95 17.8 to 18.1 ms |
-| Switching precision stays responsive | slowest input event 32 ms |
-| No leaks | -168 to +228 KB of heap over a 15 s stream |
+| A message reaches the DOM within a frame | p95 17.8 to 19.0 ms |
+| Switching precision stays responsive | slowest input event 32 to 40 ms |
+| No leaks | +153 to +562 KB of heap over a 15 s stream |
 
 Budgets, method and the 4x CPU numbers are in [docs/architecture.md](docs/architecture.md).
 

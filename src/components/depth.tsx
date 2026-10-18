@@ -10,7 +10,7 @@ import { decimalsOf, MARKETS, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude } from "@/lib/queries"
 import { bar, calm, grid, onRender, row, size } from "./styles"
 
-const fitted = "h-[var(--pitch,var(--row))] shrink-0"
+const fitted = "min-h-0 flex-1 pointer-fine:h-[var(--pitch,var(--row))] pointer-fine:flex-none"
 
 const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
 
@@ -25,7 +25,10 @@ export function Columns({ last }: { last: "Total" | "Time" }) {
   const unit = useAtomValue(unitAtom) === "usd" ? "USD" : coin
   return (
     <div
-      className={cn(grid, "h-14 shrink-0 text-[13px] text-muted-foreground pointer-fine:h-[23px] pointer-fine:text-xs")}
+      className={cn(
+        grid,
+        "h-14 shrink-0 text-[13.5px] text-muted-foreground pointer-coarse:pt-[7px] pointer-fine:h-[23px] pointer-fine:text-xs",
+      )}
     >
       <span>Price</span>
       <span className="pointer-fine:text-right">Size ({unit})</span>
@@ -131,7 +134,7 @@ function BookRow({ side, index, decimals }: { side: "asks" | "bids"; index: numb
       <span aria-hidden ref={flash} className={cn(bar, "opacity-0", side === "asks" ? "bg-ask" : "bg-bid")} />
       <span className="relative">{formatNumber(level.px, decimals)}</span>
       <span className={size}>{usd ? formatNumber(level.px * level.sz, 0) : formatNumber(level.sz, szDecimals)}</span>
-      <span className="relative text-right">
+      <span className="relative text-right pointer-coarse:tracking-[0.05em]">
         {usd ? formatNumber(level.totalUsd, 0) : formatNumber(level.total, szDecimals)}
       </span>
     </button>
@@ -152,11 +155,13 @@ function Spread() {
       data-testid="spread"
       className={cn(
         grid,
-        "relative my-[3px] h-[35px] shrink-0 bg-muted text-[15px] text-muted-foreground pointer-fine:my-0 pointer-fine:flex pointer-fine:h-[23px] pointer-fine:justify-center pointer-fine:gap-8 pointer-fine:text-xs",
+        "relative my-[1.5px] h-[35px] shrink-0 bg-muted text-[15px] text-[#929292] pointer-fine:my-0 pointer-fine:flex pointer-fine:h-[23px] pointer-fine:justify-center pointer-fine:gap-8 pointer-fine:text-xs",
       )}
     >
       <span>Spread</span>
-      <span className="text-foreground">{spread === undefined ? "" : formatNumber(spread, 0, 6)}</span>
+      <span className="text-[16px] text-foreground pointer-fine:text-xs">
+        {spread === undefined ? "" : formatNumber(spread, 0, 6)}
+      </span>
       <span className="text-right">
         {touch && spread !== undefined ? `${formatNumber((200 * spread) / (touch.bid + touch.ask), 3)}%` : ""}
       </span>

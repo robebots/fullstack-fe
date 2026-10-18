@@ -1,6 +1,6 @@
 export const MARKETS = {
-  BTC: { szDecimals: 5, maxLeverage: 40, color: "#f7931a", glyph: "₿" },
-  ETH: { szDecimals: 4, maxLeverage: 25, color: "#627eea", glyph: "Ξ" },
+  BTC: { szDecimals: 5, maxLeverage: 40, color: "#f7931a" },
+  ETH: { szDecimals: 4, maxLeverage: 25, color: "#627eea" },
 } as const
 
 export type Coin = keyof typeof MARKETS
