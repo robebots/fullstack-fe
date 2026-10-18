@@ -50,7 +50,7 @@ At the screenshot's scale the row pitch is about 36.5 px, bars are 28 px tall an
 | Element | Mock |
 |---|---|
 | Canvas | `#444444`, cards 379 px wide |
-| Header card | 80 px tall. 36 px coin icon at 22 px from the left. Pair name at 22 px, "Perpetuals" at 15 px. Leverage chip 35 px tall on `#262626`. Menu icon at the right. |
+| Header card | 80 px tall. 36 px coin icon at 22 px from the left. Pair name at 22 px, "Perpetuals" at 15 px. Leverage chip 35 px tall on `#262626`, showing Hyperliquid's real max leverage (40× BTC, 25× ETH) instead of the mock's placeholder 10×. Menu icon at the right. |
 | Section title | "Orders", 22 px, `#ababab`, between the cards |
 | Tabs | 52 px tall, two halves, labels at 17 px, a 3 px `#e25727` underline 9 px wider than the label on each side |
 | Column header | 56 px tall, 13 px text. Price at 20 px, Size left-aligned at 164 px, Total right-aligned 16 px from the edge. |
