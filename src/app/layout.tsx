@@ -7,7 +7,7 @@ const funnel = Funnel_Sans({ variable: "--font-funnel", subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Fullstack | Trade",
-  description: "Live order book and market search on Hyperliquid perps, in Fullstack's trading layout",
+  description: "Live order book on Hyperliquid perps",
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

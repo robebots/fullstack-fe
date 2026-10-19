@@ -38,7 +38,7 @@ export function Tape() {
   )
 }
 
-export function TapeSkeleton() {
+function TapeSkeleton() {
   return (
     <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {SLOTS.map((slot) => (

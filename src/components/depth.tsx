@@ -17,25 +17,11 @@ import {
   selectLevelAtom,
   unitAtom,
 } from "@/lib/atoms"
-import { MAX_ROWS, type Row, sweepOf } from "@/lib/book"
+import { depthOf, MAX_ROWS, rescale, sweepOf } from "@/lib/book"
 import { formatNumber } from "@/lib/format"
 import { decimalsOf, priceDecimals, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { bar, bone, calm, cell, grid, onRender, row, split } from "./styles"
-
-const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
-
-const niceCeil = (value: number) => {
-  if (value <= 0) return 1
-  const step = 10 ** Math.floor(Math.log10(value))
-  return [1, 2, 5, 10].map((m) => m * step).find((ceiling) => ceiling >= value) ?? value
-}
-
-const rescale = (scale: number, deepest: number) => {
-  if (deepest > scale) return niceCeil(deepest)
-  const roomy = niceCeil(deepest * 1.25)
-  return roomy < scale ? roomy : scale
-}
 
 const boxOf = ({ top, bottom, left, right }: DOMRect) => ({ top, bottom, left, right })
 

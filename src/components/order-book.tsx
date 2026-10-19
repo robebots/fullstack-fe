@@ -25,11 +25,9 @@ import {
   listenerAtom,
   type Mode,
   modeAtom,
-  type PriceSelection,
   precisionAtom,
   selectedAtom,
   setModeAtom,
-  type Tab,
   tabAtom,
   unitAtom,
 } from "@/lib/atoms"
@@ -40,11 +38,11 @@ import { type Coin, decimalsOf, PRECISIONS, precisionOptions, priceDecimals } fr
 import { useListing, useMarketName } from "@/lib/markets"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { useFeedStatus } from "@/lib/status"
-import { Columns, Depth, HoverCard, Placeholder } from "./depth"
-import { bone, plain } from "./styles"
-import { Tape, TapeSkeleton } from "./tape"
+import { Depth, HoverCard } from "./depth"
+import { plain } from "./styles"
+import { Tape } from "./tape"
 
-export type { Mode, PriceSelection }
+export type { Mode }
 
 const MODES: { value: Mode; label: string }[] = [
   { value: "tab", label: "Tab" },
@@ -59,8 +57,6 @@ const LAYOUTS: { value: Layout; label: string }[] = [
   { value: "asks", label: "Asks only" },
 ]
 
-const SLOTS = Array.from({ length: 20 }, (_, slot) => slot)
-
 const stacked = "flex min-h-0 flex-col [grid-area:1/1] data-hidden:invisible"
 
 const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
@@ -68,13 +64,14 @@ const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} /
 const heading = "flex h-10 shrink-0 items-center border-b border-line px-2.5 text-xs text-foreground"
 
 function useVisible(ref: RefObject<HTMLElement | null>) {
-  const [onScreen, setOnScreen] = useState(true)
-  const [shown, setShown] = useState(true)
+  const [onScreen, setOnScreen] = useState(false)
+  const [shown, setShown] = useState(false)
   useEffect(() => {
     if (!ref.current) return
     const observer = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting))
     observer.observe(ref.current)
     const onVisibility = () => setShown(!document.hidden)
+    onVisibility()
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
       observer.disconnect()
@@ -86,20 +83,14 @@ function useVisible(ref: RefObject<HTMLElement | null>) {
 
 export function OrderBook({
   market,
-  defaultMode = "tab",
   defaultLayout = "both",
-  view,
   paused = false,
-  onPriceSelect,
   onModeChange,
   className,
 }: {
   market: Coin
-  defaultMode?: Mode
   defaultLayout?: Layout
-  view?: Tab
   paused?: boolean
-  onPriceSelect?: (selection: PriceSelection) => void
   onModeChange?: (mode: Mode) => void
   className?: string
 }) {
@@ -107,12 +98,10 @@ export function OrderBook({
   const [store] = useState(() => {
     const store = createStore()
     store.set(coinAtom, name)
-    store.set(modeAtom, defaultMode)
     store.set(layoutAtom, defaultLayout)
-    if (view) store.set(tabAtom, view)
     return store
   })
-  useEffect(() => store.set(listenerAtom, { onPriceSelect, onModeChange }), [store, onPriceSelect, onModeChange])
+  useEffect(() => store.set(listenerAtom, { onModeChange }), [store, onModeChange])
   useEffect(() => {
     if (store.get(coinAtom) === name) return
     store.set(coinAtom, name)
@@ -120,9 +109,6 @@ export function OrderBook({
     store.set(selectedAtom, null)
     store.set(hoverAtom, null)
   }, [store, name])
-  useEffect(() => {
-    if (view) store.set(tabAtom, view)
-  }, [store, view])
   const root = useRef<HTMLDivElement>(null)
   const visible = useVisible(root)
   const current = useAtomValue(coinAtom, { store }) === name
@@ -132,16 +118,19 @@ export function OrderBook({
         <div
           ref={root}
           data-widget
-          className={cn("@container flex h-full min-h-0 flex-col [--row:23px] pointer-coarse:[--row:24px]", className)}
+          className={cn(
+            "@container flex h-full min-h-0 flex-col rounded-cell bg-panel [--row:23px] pointer-coarse:[--row:24px]",
+            className,
+          )}
         >
-          {visible && !paused && current && <Widget framed={!view} />}
+          {visible && !paused && current && <Widget />}
         </div>
       </Provider>
     </QueryClientProvider>
   )
 }
 
-function Widget({ framed }: { framed: boolean }) {
+function Widget() {
   const status = useFeedStatus()
   const mode = useAtomValue(modeAtom)
   const coin = useAtomValue(coinAtom)
@@ -161,7 +150,7 @@ function Widget({ framed }: { framed: boolean }) {
         ) : mode === "large" ? (
           <Large />
         ) : (
-          <Tabbed framed={framed} />
+          <Tabbed />
         )
       ) : (
         <div className="grid flex-1 place-items-center p-4 text-center text-xs text-muted-foreground">
@@ -182,34 +171,32 @@ function Widget({ framed }: { framed: boolean }) {
   )
 }
 
-function Tabbed({ framed }: { framed: boolean }) {
+function Tabbed() {
   const [tab, setTab] = useAtom(tabAtom)
   const trigger =
     "h-full flex-none justify-self-center rounded-none px-2.5 text-xs font-normal text-muted-foreground after:bg-primary group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-0.5 data-active:text-foreground pointer-coarse:text-[13px]"
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value)} className="min-h-0 flex-1 gap-0">
-      {framed && (
-        <div className="relative shrink-0 border-b border-line">
-          <TabsList
-            variant="line"
-            className="grid w-full grid-cols-2 rounded-none p-0 pr-8 group-data-horizontal/tabs:h-10"
-          >
-            <TabsTrigger value="book" className={trigger}>
-              Order Book
-            </TabsTrigger>
-            <TabsTrigger value="trades" className={trigger}>
-              Trades
-            </TabsTrigger>
-          </TabsList>
-          <PanelMenu className="absolute top-1/2 right-1.5 -translate-y-1/2" />
-        </div>
-      )}
+      <div className="relative shrink-0 border-b border-line">
+        <TabsList
+          variant="line"
+          className="grid w-full grid-cols-2 rounded-none p-0 pr-8 group-data-horizontal/tabs:h-10"
+        >
+          <TabsTrigger value="book" className={trigger}>
+            Order Book
+          </TabsTrigger>
+          <TabsTrigger value="trades" className={trigger}>
+            Trades
+          </TabsTrigger>
+        </TabsList>
+        <PanelMenu className="absolute top-1/2 right-1.5 -translate-y-1/2" />
+      </div>
       <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]">
         <TabsContent value="book" keepMounted render={panel} className={stacked}>
           <BookPanel />
         </TabsContent>
         <TabsContent value="trades" keepMounted render={panel} className={stacked}>
-          <TradesPanel />
+          <Tape />
         </TabsContent>
       </div>
     </Tabs>
@@ -225,7 +212,7 @@ function Stack() {
       </div>
       <Heading>Trades</Heading>
       <div className="flex min-h-0 flex-[2] flex-col">
-        <TradesPanel />
+        <Tape />
       </div>
     </>
   )
@@ -242,7 +229,7 @@ function Large() {
         Trades
       </Heading>
       <div className="flex min-h-0 flex-col @min-[36rem]:col-start-2 @min-[36rem]:row-start-2">
-        <TradesPanel />
+        <Tape />
       </div>
     </div>
   )
@@ -304,50 +291,12 @@ function PanelMenu({ className }: { className?: string }) {
 }
 
 function BookPanel() {
-  const { listed } = useListing(useAtomValue(coinAtom))
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {listed ? (
-        <>
-          <Controls />
-          <Depth />
-          <SweepStrip />
-        </>
-      ) : (
-        <BookSkeleton />
-      )}
+      <Controls />
+      <Depth />
+      <SweepStrip />
     </div>
-  )
-}
-
-function BookSkeleton() {
-  return (
-    <>
-      <div className="flex h-8 shrink-0 items-center justify-between px-2.5">
-        <span aria-hidden className={cn(bone, "w-8")} />
-        <span aria-hidden className={cn(bone, "w-10")} />
-      </div>
-      <Columns last="Total" />
-      {["asks", "bids"].map((side) => (
-        <div key={side} aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {SLOTS.map((slot) => (
-            <Placeholder key={slot} fixed />
-          ))}
-        </div>
-      ))}
-    </>
-  )
-}
-
-function TradesPanel() {
-  const { listed } = useListing(useAtomValue(coinAtom))
-  return listed ? (
-    <Tape />
-  ) : (
-    <>
-      <Columns last="Time" />
-      <TapeSkeleton />
-    </>
   )
 }
 

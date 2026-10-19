@@ -12,11 +12,9 @@ import { favoritesAtom, toggleFavoriteAtom } from "@/lib/prefs"
 import { CoinIcon } from "../coin-icon"
 import { bone, underline } from "../styles"
 
-const CATEGORIES = ["All", "Perps", "Spot", "Outcome", "Crypto", "Tradfi", "HIP-3", "HIP-4", "Trending"] as const
+const CATEGORIES = ["All", "Trending"] as const
 
 type Category = (typeof CATEGORIES)[number]
-
-const LISTED: Category[] = ["All", "Perps", "Crypto", "Trending"]
 
 type SortKey = "price" | "change" | "funding" | "volume" | "openInterest"
 
@@ -95,13 +93,12 @@ function SearchBody({
   const toggleFavorite = useSetAtom(toggleFavoriteAtom)
   const markets = useMarkets((list) => list, true)
   const list = useRef<HTMLUListElement>(null)
-  const listed = LISTED.includes(category)
   const signature = `${query}|${strict}|${category}|${sort.key}|${sort.desc}`
   const [order, setOrder] = useState<{ signature: string; names: string[] }>()
   if (markets && order?.signature !== signature)
     setOrder({
       signature,
-      names: listed ? filterMarkets(markets, query, strict, category, sort).map((market) => market.name) : [],
+      names: filterMarkets(markets, query, strict, category, sort).map((market) => market.name),
     })
   const byName = new Map(markets?.map((market) => [market.name, market]))
   const rows = order?.names.flatMap((name) => byName.get(name) ?? []) ?? []
@@ -210,11 +207,7 @@ function SearchBody({
           24h Change
         </button>
       </div>
-      {!listed ? (
-        <p className="grid flex-1 place-items-center text-sm text-muted-foreground">
-          {category} markets are coming soon
-        </p>
-      ) : !markets ? (
+      {!markets ? (
         <ul aria-hidden className="min-h-0 flex-1 overflow-hidden px-1 pb-2 lg:px-2">
           {SKELETON.map((slot) => (
             <li key={slot} className={cn("grid h-14 items-center gap-4 pr-2 pl-8 lg:h-8", narrow, wideOnDesktop)}>

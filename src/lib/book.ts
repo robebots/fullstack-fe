@@ -71,6 +71,8 @@ export const MAX_ROWS = 12
 
 const DEPTH_MS = 500
 
+const REFRESH_MS = 200
+
 const HOLD_MS = 1000
 
 const touchOf = (source: Book | Bbo) => ("bbo" in source ? source.bbo : [source.levels[0][0], source.levels[1][0]])
@@ -88,7 +90,7 @@ export function stale({ depth, fast, bbo }: Sources) {
 
 export function thin(sources: Sources, withBbo: boolean) {
   const { depth } = sources
-  if (!depth) return false
+  if (!depth) return true
   const layers = layersOf(sources, withBbo)
   return ([0, 1] as const).some((side) => merge(side, layers).length < Math.min(MAX_ROWS, depth.levels[side].length))
 }
@@ -117,9 +119,11 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
       shown = { ...sources }
       changed()
     }
+    let requestedAt = Number.NEGATIVE_INFINITY
     const refresh = async () => {
-      if (pending) return
+      if (pending || performance.now() - requestedAt < REFRESH_MS) return
       pending = true
+      requestedAt = performance.now()
       const depth = await feed.request<Book>(book)
       pending = false
       if (!depth || signal.aborted || depth.time <= (sources.depth?.time ?? 0)) return
@@ -144,6 +148,20 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
     ]
   })
   for await (const _ of updates) yield shown
+}
+
+export const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
+
+const niceCeil = (value: number) => {
+  if (value <= 0) return 1
+  const step = 10 ** Math.floor(Math.log10(value))
+  return [1, 2, 5, 10].map((m) => m * step).find((ceiling) => ceiling >= value) ?? value
+}
+
+export function rescale(scale: number, deepest: number) {
+  if (deepest > scale) return niceCeil(deepest)
+  const roomy = niceCeil(deepest * 1.25)
+  return roomy < scale ? roomy : scale
 }
 
 type Sweep = { total: number; totalUsd: number; avg: number; fromMid: number }

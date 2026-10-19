@@ -74,12 +74,14 @@ export function inPageFeed() {
   const side = (best: number, step: number, count: number) =>
     Array.from({ length: count }, (_, i) => level(best + i * step))
   const message = (channel: string, data: unknown) => JSON.stringify({ channel, data })
-  const depth = [side(81_000, -1, 20), side(81_001, 1, 20)]
   const messages: string[] = []
+  const walk: number[] = []
+  let last = -1
   let bid = 81_000
   let tid = 1
   for (let i = 0; i < 2_000; i++) {
     bid += Math.round((random() - 0.5) * 3)
+    walk.push(bid)
     const trade = () => ({
       coin: "BTC",
       side: random() > 0.5 ? "B" : "A",
@@ -119,7 +121,8 @@ export function inPageFeed() {
     send(raw: string) {
       const { method, subscription, id } = JSON.parse(raw)
       if (method === "post") {
-        const data = { coin: "BTC", time: time++, levels: depth }
+        const at = walk[last] ?? 81_000
+        const data = { coin: "BTC", time: time++, levels: [side(at, -1, 20), side(at + 1, 1, 20)] }
         emit(message("post", { id, response: { type: "info", payload: { type: "l2Book", data } } }))
       }
       if (method !== "subscribe") return
@@ -136,7 +139,10 @@ export function inPageFeed() {
       let sent = 0
       const timer = setInterval(() => {
         const due = Math.min(ms, performance.now() - start) * (perSecond / 1000)
-        while (sent < due) emit(messages[sent++ % messages.length].replace('"time":-1', `"time":${time++}`))
+        while (sent < due) {
+          last = sent++ % messages.length
+          emit(messages[last].replace('"time":-1', `"time":${time++}`))
+        }
       }, 4)
       setTimeout(() => {
         clearInterval(timer)

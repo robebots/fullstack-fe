@@ -4,7 +4,7 @@ import { coinAtom, precisionAtom } from "./atoms"
 import { type BookView, bookFrames, EMPTY_VIEW, type Sources, toView } from "./book"
 import { live } from "./client"
 import { type Coin, magnitudeOf, type Precision } from "./hyperliquid"
-import { useMarket } from "./markets"
+import { useListed, useMarket } from "./markets"
 import { EMPTY_TAPE, type Print, toTape, tradeFrames } from "./trades"
 
 const bookQuery = (coin: Coin, precision: Precision) =>
@@ -13,6 +13,7 @@ const bookQuery = (coin: Coin, precision: Precision) =>
     ...live,
     queryFn: streamedQuery({
       streamFn: ({ signal }) => bookFrames(coin, precision, signal),
+      refetchMode: "append",
       reducer: (view: BookView, sources: Sources) =>
         toView(sources, precision.nSigFigs === null, view, performance.now()),
       initialValue: EMPTY_VIEW,
@@ -25,6 +26,7 @@ const tradesQuery = (coin: Coin) =>
     ...live,
     queryFn: streamedQuery({
       streamFn: ({ signal }) => tradeFrames(coin, signal),
+      refetchMode: "append",
       reducer: toTape,
       initialValue: EMPTY_TAPE,
     }),
@@ -33,12 +35,12 @@ const tradesQuery = (coin: Coin) =>
 export function useBook<T>(select: (view: BookView) => T) {
   const coin = useAtomValue(coinAtom)
   const precision = useAtomValue(precisionAtom)
-  return useQuery({ ...bookQuery(coin, precision), select }).data
+  return useQuery({ ...bookQuery(coin, precision), select, enabled: useListed(coin) }).data
 }
 
 export function useTrades<T>(select: (tape: Print[]) => T) {
   const coin = useAtomValue(coinAtom)
-  return useQuery({ ...tradesQuery(coin), select }).data
+  return useQuery({ ...tradesQuery(coin), select, enabled: useListed(coin) }).data
 }
 
 export function useMagnitude() {
@@ -46,6 +48,7 @@ export function useMagnitude() {
   const precision = useAtomValue(precisionAtom)
   return useQuery({
     ...bookQuery(coin, precision),
+    enabled: useListed(coin),
     select: (view) => (view.bid ? magnitudeOf(view.bid) : undefined),
     placeholderData: (previous, query) => (query?.queryKey[1] === coin ? previous : undefined),
   }).data

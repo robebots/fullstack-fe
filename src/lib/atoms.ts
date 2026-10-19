@@ -29,27 +29,15 @@ type Box = { top: number; bottom: number; left: number; right: number }
 
 export type Hover = { side: Side; slot: number; row: Box; widget: Box; swept: Box; edge: "top" | "bottom" }
 
-export type PriceSelection = { coin: Coin; side: "buy" | "sell"; price: number }
-
 export const selectedAtom = atom<Target | null>(null)
 
 export const hoverAtom = atom<Hover | null>(null)
 
-export const listenerAtom = atom<{
-  onPriceSelect?: (selection: PriceSelection) => void
-  onModeChange?: (mode: Mode) => void
-}>({})
+export const listenerAtom = atom<{ onModeChange?: (mode: Mode) => void }>({})
 
 export const selectLevelAtom = atom(null, (get, set, level: Target) => {
   const current = get(selectedAtom)
-  const again = current?.side === level.side && current.px === level.px
-  set(selectedAtom, again ? null : level)
-  if (!again)
-    get(listenerAtom).onPriceSelect?.({
-      coin: get(coinAtom),
-      side: level.side === "asks" ? "buy" : "sell",
-      price: level.px,
-    })
+  set(selectedAtom, current?.side === level.side && current.px === level.px ? null : level)
 })
 
 export const setModeAtom = atom(null, (get, set, mode: Mode) => {

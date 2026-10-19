@@ -11,4 +11,4 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm test` runs the Playwright suite, perf gates included. Run `pnpm exec playwright install chromium` once first.
+`pnpm test` runs the unit tests, then the Playwright suite with its perf gates. Run `pnpm exec playwright install chromium` once first.

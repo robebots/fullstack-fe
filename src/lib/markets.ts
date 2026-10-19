@@ -83,6 +83,9 @@ export const useMarketName = (coin: Coin) =>
     client,
   ).data ?? coin
 
+export const useListed = (coin: Coin) =>
+  useMarkets((markets) => markets.some((market) => market.name === coin)) === true
+
 export function useListing(coin: Coin) {
   const { data, isError, refetch } = useQuery({
     ...marketsQuery,

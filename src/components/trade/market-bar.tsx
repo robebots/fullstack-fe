@@ -50,8 +50,7 @@ function useMarketView(coin: string) {
 
 type View = ReturnType<typeof useMarketView>
 
-function Stats({ view, compact }: { view: View; compact?: boolean }) {
-  const dollars = compact ? 0 : 2
+function Stats({ view }: { view: View }) {
   return (
     <>
       <Stat label="Mark" width="min-w-14">
@@ -60,20 +59,11 @@ function Stats({ view, compact }: { view: View; compact?: boolean }) {
       <Stat label="Oracle" width="min-w-14">
         {view && formatNumber(view.stats.oracle, view.decimals)}
       </Stat>
-      {!compact && (
-        <Stat label="24h Change" width="min-w-28">
-          {view && (
-            <span className={tone(view.change.value)}>
-              {formatSigned(view.change.value, view.decimals)} / {formatSigned(view.change.percent, 2)}%
-            </span>
-          )}
-        </Stat>
-      )}
       <Stat label="24h Volume" width="min-w-28">
-        {view && `$${formatNumber(view.stats.volume, dollars)}`}
+        {view && `$${formatNumber(view.stats.volume, 0)}`}
       </Stat>
       <Stat label="Open Interest" width="min-w-28">
-        {view && `$${formatNumber(view.stats.openInterest, dollars)}`}
+        {view && `$${formatNumber(view.stats.openInterest, 0)}`}
       </Stat>
       <Stat label="Funding / Countdown" width="min-w-32">
         {view && (
@@ -88,31 +78,6 @@ function Stats({ view, compact }: { view: View; compact?: boolean }) {
 }
 
 export function MarketBar({ coin, onSearch }: { coin: string; onSearch: () => void }) {
-  const view = useMarketView(coin)
-  return (
-    <header
-      data-testid="market-bar"
-      className="flex h-14 shrink-0 items-center gap-6 overflow-x-auto rounded-cell bg-panel px-3 text-xs whitespace-nowrap"
-    >
-      <button
-        type="button"
-        aria-label="Search markets"
-        onClick={onSearch}
-        className="flex items-center gap-2 text-foreground hover:text-foreground/80"
-      >
-        <CoinIcon coin={coin} className="size-6" />
-        <span className="text-xl">{coin}-USD</span>
-        <ChevronDown className="size-4 text-muted-foreground" />
-      </button>
-      <span className="-ml-3 grid h-5 min-w-8 place-items-center bg-primary/15 px-1.5 text-primary">
-        {view ? `${view.market.maxLeverage}x` : <span aria-hidden className={cn(bone, "w-5")} />}
-      </span>
-      <Stats view={view} />
-    </header>
-  )
-}
-
-export function MarketBarCompact({ coin, onSearch }: { coin: string; onSearch: () => void }) {
   const view = useMarketView(coin)
   const [open, setOpen] = useState(false)
   return (
@@ -157,7 +122,7 @@ export function MarketBarCompact({ coin, onSearch }: { coin: string; onSearch: (
       </div>
       {open && (
         <div className="grid grid-cols-2 gap-3">
-          <Stats view={view} compact />
+          <Stats view={view} />
         </div>
       )}
     </header>

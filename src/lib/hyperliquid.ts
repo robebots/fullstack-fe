@@ -52,5 +52,3 @@ export function precisionOptions(magnitude: number | undefined, szDecimals: numb
 
 export const priceDecimals = (price: number, szDecimals: number) =>
   decimalsOf(tickSize(PRECISIONS[0], magnitudeOf(price), szDecimals))
-
-export const priceInput = (price: number, szDecimals: number) => price.toFixed(priceDecimals(price, szDecimals))
