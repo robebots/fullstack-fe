@@ -310,6 +310,55 @@ test("the bar scale holds through small swings and glides when it steps", async 
   expect((await seen).some((value) => value > 20 && value < 50)).toBe(true)
 })
 
+test("bars draw at their real width from the first frame, on load and after a precision switch", async ({ page }) => {
+  const feed = await openBook(page)
+  const firstFrameWithBars = () =>
+    page.evaluate(
+      () =>
+        new Promise<number[]>((resolve) => {
+          const sample = () => {
+            const host = document.querySelector<HTMLElement>("[style*='--max']")
+            if (host && document.querySelector("[data-testid=bids] > button"))
+              resolve([
+                Number(host.style.getPropertyValue("--max")),
+                Number(getComputedStyle(host).getPropertyValue("--max")),
+              ])
+            else requestAnimationFrame(sample)
+          }
+          sample()
+        }),
+    )
+  const loaded = firstFrameWithBars()
+  feed.book("BTC", bids, asks)
+  const [target, painted] = await loaded
+  expect(painted).toBe(target)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  await page.waitForTimeout(100)
+  feed.options.answer = false
+  await page.getByLabel("Precision").click()
+  await page.getByRole("option", { name: /^10\s*4 sig figs$/ }).click()
+  await expect(page.getByTestId("bids").locator(":scope > button")).toHaveCount(0)
+  const switched = firstFrameWithBars()
+  feed.book(
+    "BTC",
+    ladder(
+      81_000,
+      -10,
+      sizes(20, (i) => (i + 1) * 10),
+    ),
+    ladder(
+      81_010,
+      10,
+      sizes(20, (i) => (i + 1) * 10),
+    ),
+    4,
+  )
+  feed.answer()
+  const [grouped, groupedPainted] = await switched
+  expect(grouped).toBeGreaterThan(target)
+  expect(groupedPainted).toBe(grouped)
+})
+
 test("a lost depth reply doesn't stop the depth poll", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)

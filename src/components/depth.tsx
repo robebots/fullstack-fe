@@ -71,21 +71,33 @@ export function Depth() {
   const rows = useAtomValue(rowsAtom)
   const [scale, setScale] = useState(0)
   const [settled, setSettled] = useState(false)
-  useEffect(() => setSettled(scale > 0), [scale])
-  const max =
+  const live = useBook((view) => view.bids.length + view.asks.length > 0) ?? false
+  const next =
     useBook((view) =>
       rescale(
         scale,
         Math.max(layout === "asks" ? 0 : depthOf(view.bids, rows), layout === "bids" ? 0 : depthOf(view.asks, rows)),
       ),
     ) ?? scale
+  const max = live ? next : 0
   if (max !== scale) setScale(max)
+  const ready = max > 0
+  useEffect(() => {
+    if (!ready) {
+      setSettled(false)
+      return
+    }
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setSettled(true))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [ready])
   return (
     <Profiler id="book" onRender={onRender}>
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col",
-          settled && "[transition-property:--max] duration-300 ease-out motion-reduce:transition-none",
+          settled && ready && "[transition-property:--max] duration-300 ease-out motion-reduce:transition-none",
         )}
         style={{ "--max": max || 1 } as CSSProperties}
       >
