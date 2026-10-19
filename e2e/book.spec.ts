@@ -71,14 +71,15 @@ test("switching precision requests the new depth and ignores pushes until the ne
   await expect(page.getByLabel("Precision")).toHaveText(/^10\b/)
 })
 
-test("rows leave slack under the 20-level snapshot, so an 8-level move shows no blank rows", async ({ page }) => {
+test("rows leave slack under the 20-level snapshot, so a 3-level move shows no blank rows", async ({ page }) => {
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1400 })
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
   const slots = await rows(page, "asks").count()
-  feed.fast("BTC", ladder(81_008, -1, nine), ladder(81_009, 1, nine))
-  await expect(cells(page, "asks", 0)).toHaveText(["81,009", "9.00000", "9.00000"])
+  expect(slots).toBe(16)
+  feed.fast("BTC", ladder(81_003, -1, nine), ladder(81_004, 1, nine))
+  await expect(cells(page, "asks", 0)).toHaveText(["81,004", "9.00000", "9.00000"])
   await expect(page.getByTestId("asks").locator(":scope > button")).toHaveCount(slots)
 })
 
@@ -327,43 +328,23 @@ test("market links ignore case", async ({ page }) => {
   await expect(page.getByTestId("market-bar").filter({ visible: true })).toContainText("ETH")
 })
 
-test("rows fill the height the widget is given", async ({ page }) => {
+test("rows are Hyperliquid's 25 px at any height and in either layout, as many as fit up to 16", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
+  const heights = () =>
+    rows(page, "bids").evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 450 })
   await expect(cells(page, "bids", 0)).toHaveCount(3)
   const short = await rows(page, "bids").count()
-  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 900 })
-  await expect.poll(() => rows(page, "bids").count()).toBeGreaterThan(short)
-  for (const side of ["asks", "bids"] as const) {
-    const box = await page.getByTestId(side).boundingBox()
-    const heights = await rows(page, side).evaluateAll((elements) =>
-      elements.map((element) => element.getBoundingClientRect().height),
-    )
-    const filled = heights.reduce((sum, height) => sum + height, 0)
-    expect(Math.abs((box?.height ?? 0) - filled)).toBeLessThan(0.5)
-  }
-})
-
-test("rows never stretch past one and a half times their height, side by side on a tall screen included", async ({
-  page,
-}) => {
+  expect(new Set(await heights())).toEqual(new Set([25]))
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1400 })
-  const feed = await openBook(page)
-  feed.book("BTC", bids, asks)
-  await expect(cells(page, "bids", 0)).toHaveCount(3)
-  const pitch = await page
-    .locator("[data-widget]")
-    .evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue("--row")))
+  await expect.poll(() => rows(page, "bids").count()).toBe(16)
+  expect(short).toBeLessThan(16)
+  expect(new Set(await heights())).toEqual(new Set([25]))
   await choose(page, "Side by side")
   await expect(cells(page, "bids", 0)).toHaveCount(2)
-  for (const layout of ["Side by side", "Bids and asks"]) {
-    await choose(page, layout)
-    const heights = await rows(page, "bids").evaluateAll((elements) =>
-      elements.map((element) => element.getBoundingClientRect().height),
-    )
-    expect(Math.max(...heights), layout).toBeLessThanOrEqual(pitch * 1.5 + 0.5)
-  }
+  await expect(rows(page, "bids")).toHaveCount(16)
+  expect(new Set(await heights())).toEqual(new Set([25]))
 })
 
 test("the menu shows one side, both sides or both side by side", async ({ page }) => {
@@ -489,8 +470,20 @@ for (const [width, height] of [
     expect(await page.evaluate(() => document.scrollingElement?.scrollWidth ?? 0)).toBeLessThanOrEqual(width)
     expect(await rows(page, "bids").count()).toBeGreaterThanOrEqual(6)
     expect((await rows(page, "bids").first().boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24)
-    for (const name of ["Precision", "Units", "Book settings", "Search markets", "Market details"]) {
-      const box = await page.getByRole("button", { name }).or(page.getByRole("combobox", { name })).boundingBox()
+    for (const name of [
+      "Precision",
+      "Units",
+      "Book settings",
+      "Search markets",
+      "Market details",
+      "GitHub",
+      "built by Rob",
+    ]) {
+      const box = await page
+        .getByRole("button", { name })
+        .or(page.getByRole("combobox", { name }))
+        .or(page.getByRole("link", { name }))
+        .boundingBox()
       expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(40)
     }
     const controls = await page.getByLabel("Precision").boundingBox()
@@ -498,6 +491,21 @@ for (const [width, height] of [
     expect(controls?.y ?? 0).toBeGreaterThan(spread?.y ?? 0)
   })
 }
+
+test("the app links its repo from the top corner and credits Rob in the footer", async ({ page }) => {
+  await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  const repo = page.getByRole("link", { name: "GitHub" })
+  const credit = page.getByRole("link", { name: "built by Rob" })
+  await expect(repo).toHaveAttribute("href", "https://github.com/robebots/fullstack-fe")
+  await expect(credit).toHaveAttribute("href", "https://robgungor.com")
+  const app = await page.locator("main").boundingBox()
+  const corner = await repo.boundingBox()
+  const footer = await credit.boundingBox()
+  const book = await page.locator("[data-widget]").boundingBox()
+  expect((corner?.x ?? 0) + (corner?.width ?? 0)).toBeGreaterThan((app?.x ?? 0) + (app?.width ?? 0) - 16)
+  expect(corner?.y ?? 99).toBeLessThan(16)
+  expect(footer?.y ?? 0).toBeGreaterThan((book?.y ?? 0) + (book?.height ?? 0) - 1)
+})
 
 test("the loading state is the book's own layout, so nothing moves when data lands", async ({ page }) => {
   let release = () => {}

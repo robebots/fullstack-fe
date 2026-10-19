@@ -67,7 +67,7 @@ export function toView(sources: Sources, withBbo: boolean, previous: BookView, n
   }
 }
 
-export const MAX_ROWS = 12
+export const MAX_ROWS = 16
 
 const DEPTH_MS = 500
 

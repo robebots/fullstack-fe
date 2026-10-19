@@ -12,7 +12,7 @@ export function Favorites({ coin, onSelect }: { coin: string; onSelect: (coin: s
   const favorites = useAtomValue(favoritesAtom)
   const markets = useMarkets((list) => new Map(list.map((market): [string, Market] => [market.name, market])))
   return (
-    <div className="flex h-8 shrink-0 items-center gap-4 overflow-x-auto px-3 text-xs whitespace-nowrap pointer-coarse:h-10">
+    <div className="flex h-8 min-w-0 flex-1 items-center gap-4 overflow-x-auto px-3 text-xs whitespace-nowrap pointer-coarse:h-10">
       <Star className="size-3.5 shrink-0 fill-primary text-primary" />
       {favorites.map((name) => {
         const market = markets?.get(name)

@@ -115,10 +115,7 @@ export function OrderBook({
         <div
           ref={root}
           data-widget
-          className={cn(
-            "@container flex h-full min-h-0 flex-col rounded-cell bg-panel [--row:23px] pointer-coarse:[--row:24px]",
-            className,
-          )}
+          className={cn("@container flex h-full min-h-0 flex-col rounded-cell bg-panel [--row:25px]", className)}
         >
           {visible && !paused && current && <Widget />}
         </div>

@@ -42,7 +42,7 @@ function TapeSkeleton() {
   return (
     <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {SLOTS.map((slot) => (
-        <Placeholder key={slot} fixed />
+        <Placeholder key={slot} />
       ))}
     </div>
   )
@@ -55,7 +55,7 @@ const TapeRow = memo(function TapeRow({ print, szDecimals }: { print: Print; szD
   return (
     <div
       data-side={print.buy ? "buy" : "sell"}
-      className={cn(row, "h-(--row) shrink-0 pointer-fine:hover:bg-white/[0.04]")}
+      className={cn(row, "pointer-fine:hover:bg-white/[0.04]")}
       style={{ "--size": print.sz } as CSSProperties}
     >
       <span

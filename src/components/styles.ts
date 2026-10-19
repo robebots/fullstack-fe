@@ -3,11 +3,9 @@ import type { ProfilerOnRenderCallback } from "react"
 
 export const grid = "grid grid-cols-[30%_35%_35%] items-center px-2.5 pointer-coarse:px-3"
 
-export const row = cn(grid, "relative text-xs contain-content pointer-coarse:text-[13px]")
+export const row = cn(grid, "relative h-(--row) shrink-0 text-xs contain-content")
 
-export const split = "relative grid grid-cols-2 items-center px-2.5 text-xs contain-content pointer-coarse:text-[13px]"
-
-export const stretch = "min-h-0 max-h-[calc(var(--row)*1.5)] flex-1"
+export const split = "relative grid h-(--row) shrink-0 grid-cols-2 items-center px-2.5 text-xs contain-content"
 
 export const bar = "absolute inset-x-0 inset-y-px"
 
