@@ -652,8 +652,13 @@ for (const [width, height] of [
   })
 }
 
-test("the app links its repo from the top corner and credits Rob in the footer", async ({ page }) => {
+test("the app shows the Fullstack mark and links its repo from the top corners and credits Rob in the footer", async ({
+  page,
+}) => {
   await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  const mark = await page.getByRole("img", { name: "Fullstack" }).boundingBox()
+  expect((mark?.y ?? 99) + (mark?.height ?? 0) / 2).toBeLessThan(28)
+  expect(mark?.x ?? 99).toBeLessThan(((await page.locator("main").boundingBox())?.x ?? 0) + 24)
   const repo = page.getByRole("link", { name: "GitHub" })
   const credit = page.getByRole("link", { name: "built by Rob" })
   await expect(repo).toHaveAttribute("href", "https://github.com/robebots/fullstack-fe")

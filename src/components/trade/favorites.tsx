@@ -2,7 +2,6 @@
 
 import { cn } from "cn"
 import { useAtomValue } from "jotai"
-import { Star } from "lucide-react"
 import { formatSigned } from "@/lib/format"
 import { changeOf, type Market, useMarkets } from "@/lib/markets"
 import { favoritesAtom } from "@/lib/prefs"
@@ -13,7 +12,11 @@ export function Favorites({ coin, onSelect }: { coin: string; onSelect: (coin: s
   const markets = useMarkets((list) => new Map(list.map((market): [string, Market] => [market.name, market])))
   return (
     <div className="flex h-8 min-w-0 flex-1 items-center gap-4 overflow-x-auto px-3 text-xs whitespace-nowrap pointer-coarse:h-10">
-      <Star className="size-3.5 shrink-0 fill-primary text-primary" />
+      <svg role="img" aria-label="Fullstack" viewBox="1.5 23.5 97 52.5" className="h-3.5 shrink-0 fill-primary">
+        <path d="M85.552 49.1643C86.6566 49.1643 86.9413 49.8192 86.188 50.627L78.004 59.4033C77.2507 60.2111 75.7446 60.866 74.64 60.866H50.6399C49.5353 60.866 48.0292 61.5208 47.2759 62.3287L36.3639 74.0303C35.6106 74.8382 34.1045 75.493 32.9999 75.493H3.00006C1.89549 75.493 1.61074 74.8382 2.36406 74.0303L9.86604 65.9854C10.6194 65.1776 12.1255 64.5227 13.23 64.5227H27.2299C28.3345 64.5227 29.8406 63.8679 30.5939 63.06L42.1879 50.627C42.9412 49.8192 44.4473 49.1643 45.5519 49.1643L85.552 49.1643Z" />
+        <path d="M96.8281 30C97.9327 30 98.2174 30.6549 97.4641 31.4627L87.9162 41.7017C87.1628 42.5095 85.6567 43.1644 84.5522 43.1644H44.5522C43.4476 43.1644 41.9415 43.8192 41.1882 44.6271L29.5942 57.0601C28.8409 57.8679 27.3348 58.5228 26.2302 58.5228H12.2302C11.1256 58.5228 10.8409 57.8679 11.5942 57.0601L25.2342 42.433C25.9875 41.6252 27.4936 40.9703 28.5981 40.9703H38.5981C39.7027 40.9703 41.2088 40.3154 41.9621 39.5076L49.4641 31.4627C50.2174 30.6549 51.7236 30 52.8281 30H96.8281Z" />
+        <path d="M40.9619 33.5076C40.2086 34.3154 38.7025 34.9703 37.5979 34.9703L27.5979 34.9703C26.4933 34.9703 26.2086 34.3154 26.9619 33.5076L34.4639 25.4627C35.2172 24.6549 36.7233 24 37.8279 24L47.8279 24C48.9325 24 49.2172 24.6549 48.4639 25.4627L40.9619 33.5076Z" />
+      </svg>
       {favorites.map((name) => {
         const market = markets?.get(name)
         if (markets && !market) return null
