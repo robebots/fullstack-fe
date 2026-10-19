@@ -6,16 +6,19 @@ import { SquareArrowOutUpRight } from "lucide-react"
 import { type CSSProperties, memo, Profiler } from "react"
 import { unitAtom } from "@/lib/atoms"
 import { formatNumber, formatTime } from "@/lib/format"
-import { decimalsOf, magnitudeOf, PRECISIONS, tickSize } from "@/lib/hyperliquid"
+import { priceDecimals } from "@/lib/hyperliquid"
 import { useSzDecimals, useTrades } from "@/lib/queries"
 import type { Print } from "@/lib/trades"
-import { Columns } from "./depth"
+import { Columns, Placeholder } from "./depth"
 import { bar, onRender, row } from "./styles"
 
-export const explorerUrl = (hash: string) => `https://app.hyperliquid.xyz/explorer/tx/${hash}`
+const SLOTS = Array.from({ length: 30 }, (_, slot) => slot)
+
+const explorerUrl = (hash: string) => `https://app.hyperliquid.xyz/explorer/tx/${hash}`
 
 export function Tape() {
   const tape = useTrades((prints) => prints)
+  const szDecimals = useSzDecimals()
   const largest = useTrades((prints) => Math.max(0, ...prints.map((print) => print.sz)))
   return (
     <Profiler id="tape" onRender={onRender}>
@@ -25,18 +28,29 @@ export function Tape() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         style={{ "--max": largest || 1 } as CSSProperties}
       >
-        {tape?.map((print) => (
-          <TapeRow key={print.id} print={print} />
-        ))}
+        {tape?.length ? (
+          tape.map((print) => <TapeRow key={print.id} print={print} szDecimals={szDecimals} />)
+        ) : (
+          <TapeSkeleton />
+        )}
       </div>
     </Profiler>
   )
 }
 
-const TapeRow = memo(function TapeRow({ print }: { print: Print }) {
-  const szDecimals = useSzDecimals()
+export function TapeSkeleton() {
+  return (
+    <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {SLOTS.map((slot) => (
+        <Placeholder key={slot} fixed />
+      ))}
+    </div>
+  )
+}
+
+const TapeRow = memo(function TapeRow({ print, szDecimals }: { print: Print; szDecimals: number }) {
   const usd = useAtomValue(unitAtom) === "usd"
-  const decimals = decimalsOf(tickSize(PRECISIONS[0], magnitudeOf(print.px), szDecimals))
+  const decimals = priceDecimals(print.px, szDecimals)
   const time = formatTime(print.time)
   return (
     <div
@@ -64,15 +78,19 @@ const TapeRow = memo(function TapeRow({ print }: { print: Print }) {
       </span>
       <span className="relative flex items-center justify-end gap-1.5">
         {time}
-        <a
-          href={explorerUrl(print.hash)}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`Open the ${time} trade in the explorer`}
-          className="text-primary/80 hover:text-primary"
-        >
-          <SquareArrowOutUpRight className="size-3" />
-        </a>
+        {print.hash ? (
+          <a
+            href={explorerUrl(print.hash)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open the ${time} trade in the explorer`}
+            className="text-primary/80 hover:text-primary"
+          >
+            <SquareArrowOutUpRight className="size-3" />
+          </a>
+        ) : (
+          <span className="size-3" />
+        )}
       </span>
     </div>
   )

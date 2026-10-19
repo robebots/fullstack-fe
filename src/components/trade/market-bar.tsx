@@ -3,9 +3,11 @@
 import { cn } from "cn"
 import { ChevronDown } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
-import { formatNumber, formatSigned, priceDecimals } from "@/lib/format"
+import { formatNumber, formatSigned } from "@/lib/format"
+import { priceDecimals } from "@/lib/hyperliquid"
 import { changeOf, useMarket, useStats } from "@/lib/markets"
 import { CoinIcon } from "../coin-icon"
+import { bone } from "../styles"
 
 const HOUR = 3_600_000
 
@@ -16,7 +18,7 @@ function Countdown() {
     const timer = setInterval(() => setNow(Date.now()), 1_000)
     return () => clearInterval(timer)
   }, [])
-  if (now === undefined) return null
+  if (now === undefined) return <span className="text-muted-foreground">--:--:--</span>
   const left = Math.ceil(now / HOUR) * HOUR - now
   const parts = [left / HOUR, (left / 60_000) % 60, (left / 1_000) % 60].map((part) =>
     String(Math.floor(part)).padStart(2, "0"),
@@ -24,18 +26,20 @@ function Countdown() {
   return <span>{parts.join(":")}</span>
 }
 
-function Stat({ label, children }: { label: string; children: ReactNode }) {
+function Stat({ label, width, children }: { label: string; width: string; children?: ReactNode }) {
   return (
-    <div className="flex shrink-0 flex-col gap-0.5">
+    <div className={cn("flex shrink-0 flex-col gap-0.5", width)}>
       <span className="text-muted-foreground">{label}</span>
-      <span className="flex gap-2 tabular-nums">{children}</span>
+      <span className="flex h-4 items-center gap-2 tabular-nums">
+        {children ?? <span aria-hidden className={cn(bone, "h-3 w-4/5")} />}
+      </span>
     </div>
   )
 }
 
 const tone = (value: number) => (value >= 0 ? "text-bid" : "text-ask")
 
-export function useMarketView(coin: string) {
+function useMarketView(coin: string) {
   const market = useMarket(coin)
   const stats = useStats(coin)
   if (!market || !stats) return undefined
@@ -44,15 +48,51 @@ export function useMarketView(coin: string) {
   return { market, stats, decimals, change }
 }
 
-export function MarketBar({ coin, onSearch, className }: { coin: string; onSearch: () => void; className?: string }) {
+type View = ReturnType<typeof useMarketView>
+
+function Stats({ view, compact }: { view: View; compact?: boolean }) {
+  const dollars = compact ? 0 : 2
+  return (
+    <>
+      <Stat label="Mark" width="min-w-14">
+        {view && formatNumber(view.stats.mark, view.decimals)}
+      </Stat>
+      <Stat label="Oracle" width="min-w-14">
+        {view && formatNumber(view.stats.oracle, view.decimals)}
+      </Stat>
+      {!compact && (
+        <Stat label="24h Change" width="min-w-28">
+          {view && (
+            <span className={tone(view.change.value)}>
+              {formatSigned(view.change.value, view.decimals)} / {formatSigned(view.change.percent, 2)}%
+            </span>
+          )}
+        </Stat>
+      )}
+      <Stat label="24h Volume" width="min-w-28">
+        {view && `$${formatNumber(view.stats.volume, dollars)}`}
+      </Stat>
+      <Stat label="Open Interest" width="min-w-28">
+        {view && `$${formatNumber(view.stats.openInterest, dollars)}`}
+      </Stat>
+      <Stat label="Funding / Countdown" width="min-w-32">
+        {view && (
+          <>
+            <span className={tone(view.stats.funding)}>{formatNumber(view.stats.funding * 100, 4)}%</span>
+            <Countdown />
+          </>
+        )}
+      </Stat>
+    </>
+  )
+}
+
+export function MarketBar({ coin, onSearch }: { coin: string; onSearch: () => void }) {
   const view = useMarketView(coin)
   return (
     <header
       data-testid="market-bar"
-      className={cn(
-        "flex h-14 shrink-0 items-center gap-6 overflow-x-auto rounded-[3px] bg-panel px-3 text-xs whitespace-nowrap",
-        className,
-      )}
+      className="flex h-14 shrink-0 items-center gap-6 overflow-x-auto rounded-cell bg-panel px-3 text-xs whitespace-nowrap"
     >
       <button
         type="button"
@@ -64,26 +104,10 @@ export function MarketBar({ coin, onSearch, className }: { coin: string; onSearc
         <span className="text-xl">{coin}-USD</span>
         <ChevronDown className="size-4 text-muted-foreground" />
       </button>
-      {view && (
-        <>
-          <span className="-ml-3 rounded-[3px] bg-primary/15 px-1.5 py-0.5 text-primary">
-            {view.market.maxLeverage}x
-          </span>
-          <Stat label="Mark">{formatNumber(view.stats.mark, view.decimals)}</Stat>
-          <Stat label="Oracle">{formatNumber(view.stats.oracle, view.decimals)}</Stat>
-          <Stat label="24h Change">
-            <span className={tone(view.change.value)}>
-              {formatSigned(view.change.value, view.decimals)} / {formatSigned(view.change.percent, 2)}%
-            </span>
-          </Stat>
-          <Stat label="24h Volume">${formatNumber(view.stats.volume, 2)}</Stat>
-          <Stat label="Open Interest">${formatNumber(view.stats.openInterest, 2)}</Stat>
-          <Stat label="Funding / Countdown">
-            <span className={tone(view.stats.funding)}>{formatNumber(view.stats.funding * 100, 4)}%</span>
-            <Countdown />
-          </Stat>
-        </>
-      )}
+      <span className="-ml-3 grid h-5 min-w-8 place-items-center bg-primary/15 px-1.5 text-primary">
+        {view ? `${view.market.maxLeverage}x` : <span aria-hidden className={cn(bone, "w-5")} />}
+      </span>
+      <Stats view={view} />
     </header>
   )
 }
@@ -100,39 +124,40 @@ export function MarketBarCompact({ coin, onSearch }: { coin: string; onSearch: (
             <span className="flex items-center gap-1 text-lg leading-tight text-foreground">
               {coin}-USD <ChevronDown className="size-4 text-muted-foreground" />
             </span>
-            {view && <span className="text-primary">{view.market.maxLeverage}x</span>}
+            <span className="flex h-4 items-center text-primary">
+              {view ? `${view.market.maxLeverage}x` : <span aria-hidden className={cn(bone, "w-6")} />}
+            </span>
           </span>
         </button>
-        {view && (
-          <span className="ml-auto flex flex-col items-end tabular-nums">
-            <span className="text-lg leading-tight">
-              {formatNumber(view.stats.mid ?? view.stats.mark, view.decimals)}
-            </span>
-            <span className={tone(view.change.value)}>
-              {formatSigned(view.change.value, view.decimals)} / {formatSigned(view.change.percent, 2)}%
-            </span>
+        <span className="ml-auto flex flex-col items-end gap-1 tabular-nums">
+          <span className="flex h-6 items-center text-lg leading-tight">
+            {view ? (
+              formatNumber(view.stats.mark, view.decimals)
+            ) : (
+              <span aria-hidden className={cn(bone, "h-4 w-20")} />
+            )}
           </span>
-        )}
+          <span className={cn("flex h-4 items-center", view && tone(view.change.value))}>
+            {view ? (
+              `${formatSigned(view.change.value, view.decimals)} / ${formatSigned(view.change.percent, 2)}%`
+            ) : (
+              <span aria-hidden className={cn(bone, "w-24")} />
+            )}
+          </span>
+        </span>
         <button
           type="button"
           aria-label="Market details"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="grid size-8 place-items-center rounded-[3px] border border-line text-muted-foreground"
+          className="grid size-8 place-items-center border border-line text-muted-foreground"
         >
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
         </button>
       </div>
-      {open && view && (
+      {open && (
         <div className="grid grid-cols-2 gap-3">
-          <Stat label="Mark">{formatNumber(view.stats.mark, view.decimals)}</Stat>
-          <Stat label="Oracle">{formatNumber(view.stats.oracle, view.decimals)}</Stat>
-          <Stat label="24h Volume">${formatNumber(view.stats.volume, 0)}</Stat>
-          <Stat label="Open Interest">${formatNumber(view.stats.openInterest, 0)}</Stat>
-          <Stat label="Funding / Countdown">
-            <span className={tone(view.stats.funding)}>{formatNumber(view.stats.funding * 100, 4)}%</span>
-            <Countdown />
-          </Stat>
+          <Stats view={view} compact />
         </div>
       )}
     </header>

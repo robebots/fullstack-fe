@@ -24,12 +24,12 @@
   --color-ring: var(--ring);
   --color-bid: #1fa67d;
   --color-ask: #ed7088;
-  --color-brand: var(--primary);
   --animate-print: print 800ms ease-out;
   --color-bid-bar: #0f2c24;
   --color-ask-bar: #33191f;
   --color-panel: var(--panel);
   --color-line: var(--line);
+  --radius-cell: 3px;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

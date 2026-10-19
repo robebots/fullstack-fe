@@ -1,13 +1,12 @@
 import { cn } from "cn"
 import { ChevronDown } from "lucide-react"
+import { underline } from "../styles"
 
 export function Chart({ className }: { className?: string }) {
   return (
-    <section aria-label="Chart" className={cn("flex min-h-0 flex-col rounded-[3px] bg-panel", className)}>
+    <section aria-label="Chart" className={cn("flex min-h-0 flex-col rounded-cell bg-panel", className)}>
       <div className="flex h-10 shrink-0 items-center gap-5 border-b border-line px-3 text-xs">
-        <span className="relative flex h-full items-center text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary">
-          Chart
-        </span>
+        <span className={cn(underline, "flex h-full items-center text-foreground")}>Chart</span>
         <span className="text-muted-foreground">Funding</span>
       </div>
       <div className="flex h-9 shrink-0 items-center gap-4 border-b border-line px-3 text-xs text-muted-foreground">

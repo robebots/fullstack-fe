@@ -87,6 +87,7 @@ export function inPageFeed() {
       time: 1,
       tid: tid,
       hash: `0x${tid++}`,
+      users: ["0xbuyer", "0xseller"],
     })
     messages.push(
       i % 4 === 3

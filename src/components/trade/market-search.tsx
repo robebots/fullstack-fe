@@ -3,12 +3,14 @@
 import { cn } from "cn"
 import { useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Search, Star, X } from "lucide-react"
-import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from "react"
+import { type KeyboardEvent, type RefObject, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { favoritesAtom, toggleFavoriteAtom } from "@/lib/favorites"
-import { formatCompact, formatNumber, formatSigned, priceDecimals } from "@/lib/format"
+import { formatCompact, formatNumber, formatSigned } from "@/lib/format"
+import { priceDecimals } from "@/lib/hyperliquid"
 import { changeOf, type Market, useMarkets } from "@/lib/markets"
+import { favoritesAtom, toggleFavoriteAtom } from "@/lib/prefs"
 import { CoinIcon } from "../coin-icon"
+import { bone, underline } from "../styles"
 
 const CATEGORIES = ["All", "Perps", "Spot", "Outcome", "Crypto", "Tradfi", "HIP-3", "HIP-4", "Trending"] as const
 
@@ -21,7 +23,7 @@ type SortKey = "price" | "change" | "funding" | "volume" | "openInterest"
 type Sort = { key: SortKey; desc: boolean }
 
 const VALUE: Record<SortKey, (market: Market) => number> = {
-  price: (market) => market.mid ?? market.mark,
+  price: (market) => market.mark,
   change: (market) => changeOf(market).percent,
   funding: (market) => market.funding,
   volume: (market) => market.volume,
@@ -29,7 +31,7 @@ const VALUE: Record<SortKey, (market: Market) => number> = {
 }
 
 const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "price", label: "Last Price" },
+  { key: "price", label: "Mark Price" },
   { key: "change", label: "24h Change" },
   { key: "funding", label: "8h Funding" },
   { key: "volume", label: "Volume" },
@@ -39,6 +41,8 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 const wide = "grid-cols-[minmax(0,2.2fr)_1fr_1.4fr_1fr_1.3fr_1.3fr]"
 
 const narrow = "grid-cols-[minmax(0,1.3fr)_1fr_1fr]"
+
+const SKELETON = Array.from({ length: 14 }, (_, slot) => slot)
 
 const wideOnDesktop = "lg:grid-cols-[minmax(0,2.2fr)_1fr_1.4fr_1fr_1.3fr_1.3fr]"
 
@@ -63,8 +67,7 @@ export function MarketSearch({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        showCloseButton={false}
-        initialFocus={input}
+        initialFocus={(type) => (type === "touch" ? true : input.current)}
         className="top-0 left-0 flex h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none bg-panel p-0 text-xs ring-line sm:max-w-none lg:top-28 lg:left-1/2 lg:h-[min(640px,calc(100dvh-8rem))] lg:w-[min(1180px,calc(100%-2rem))] lg:-translate-x-1/2 lg:rounded-md lg:ring-1"
       >
         <DialogTitle className="sr-only">Search markets</DialogTitle>
@@ -93,11 +96,16 @@ function SearchBody({
   const markets = useMarkets((list) => list, true)
   const list = useRef<HTMLUListElement>(null)
   const listed = LISTED.includes(category)
-  const rows = markets && listed ? filterMarkets(markets, query, strict, category, sort) : []
+  const signature = `${query}|${strict}|${category}|${sort.key}|${sort.desc}`
+  const [order, setOrder] = useState<{ signature: string; names: string[] }>()
+  if (markets && order?.signature !== signature)
+    setOrder({
+      signature,
+      names: listed ? filterMarkets(markets, query, strict, category, sort).map((market) => market.name) : [],
+    })
+  const byName = new Map(markets?.map((market) => [market.name, market]))
+  const rows = order?.names.flatMap((name) => byName.get(name) ?? []) ?? []
   const current = Math.min(active, Math.max(0, rows.length - 1))
-  useEffect(() => {
-    list.current?.children[current]?.scrollIntoView({ block: "nearest" })
-  }, [current])
   const choose = (market: Market) => {
     onSelect(market.name)
     onClose()
@@ -106,7 +114,9 @@ function SearchBody({
     const target = rows[current]
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault()
-      setActive(Math.max(0, Math.min(rows.length - 1, current + (event.key === "ArrowDown" ? 1 : -1))))
+      const next = Math.max(0, Math.min(rows.length - 1, current + (event.key === "ArrowDown" ? 1 : -1)))
+      setActive(next)
+      list.current?.children[next]?.scrollIntoView({ block: "nearest" })
     } else if (event.key === "Enter" && target) choose(target)
     else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && target) {
       event.preventDefault()
@@ -120,7 +130,7 @@ function SearchBody({
   return (
     <>
       <div className="flex shrink-0 items-center gap-3 p-3 lg:p-4">
-        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[3px] border border-line px-3 focus-within:border-primary/60">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 border border-line px-3 focus-within:border-primary/60">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
             ref={input}
@@ -131,11 +141,11 @@ function SearchBody({
             }}
             onKeyDown={onKeyDown}
             placeholder="Search"
-            aria-label="Search markets"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            aria-label="Filter markets"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground pointer-coarse:text-base"
           />
         </label>
-        <fieldset aria-label="Listing" className="grid h-10 shrink-0 grid-cols-2 rounded-[3px] bg-muted p-1 text-sm">
+        <fieldset aria-label="Listing" className="grid h-10 shrink-0 grid-cols-2 bg-muted p-1 text-sm">
           {[true, false].map((value) => (
             <button
               key={String(value)}
@@ -145,10 +155,7 @@ function SearchBody({
                 setStrict(value)
                 setActive(0)
               }}
-              className={cn(
-                "rounded-[3px] px-4",
-                strict === value ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-              )}
+              className={cn("px-4", strict === value ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
             >
               {value ? "Strict" : "All"}
             </button>
@@ -169,10 +176,7 @@ function SearchBody({
               setActive(0)
             }}
             className={cn(
-              "relative",
-              category === name
-                ? "text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary"
-                : "text-muted-foreground hover:text-foreground",
+              category === name ? cn(underline, "text-foreground") : "text-muted-foreground hover:text-foreground",
             )}
           >
             {name}
@@ -201,7 +205,7 @@ function SearchBody({
           Open Interest
         </button>
         <button type="button" onClick={() => sortBy("change")} className="text-right leading-tight">
-          Last Price
+          Mark Price
           <br />
           24h Change
         </button>
@@ -210,19 +214,29 @@ function SearchBody({
         <p className="grid flex-1 place-items-center text-sm text-muted-foreground">
           {category} markets are coming soon
         </p>
+      ) : !markets ? (
+        <ul aria-hidden className="min-h-0 flex-1 overflow-hidden px-1 pb-2 lg:px-2">
+          {SKELETON.map((slot) => (
+            <li key={slot} className={cn("grid h-14 items-center gap-4 pr-2 pl-8 lg:h-8", narrow, wideOnDesktop)}>
+              <span className={cn(bone, "w-24")} />
+              <span className={cn(bone, "w-16 justify-self-end lg:justify-self-start")} />
+              <span className={cn(bone, "w-16 justify-self-end lg:justify-self-start")} />
+              <span className={cn(bone, "hidden w-12 lg:block")} />
+              <span className={cn(bone, "hidden w-20 lg:block")} />
+              <span className={cn(bone, "hidden w-20 lg:block")} />
+            </li>
+          ))}
+        </ul>
       ) : rows.length === 0 ? (
-        <p className="grid flex-1 place-items-center text-sm text-muted-foreground">
-          {markets ? `No markets match "${query}"` : "Loading markets"}
-        </p>
+        <p className="grid flex-1 place-items-center text-sm text-muted-foreground">No markets match "{query}"</p>
       ) : (
-        <ul ref={list} data-testid="market-list" className="min-h-0 flex-1 overflow-y-auto px-1 pb-2 lg:px-2">
+        <ul ref={list} className="min-h-0 flex-1 overflow-y-auto px-1 pb-2 lg:px-2">
           {rows.map((market, index) => (
             <Option
               key={market.name}
               market={market}
               active={index === current}
               favorite={favorites.includes(market.name)}
-              onActive={() => setActive(index)}
               onChoose={() => choose(market)}
               onFavorite={() => toggleFavorite(market.name)}
             />
@@ -238,7 +252,7 @@ function SearchBody({
           ["Esc", "Close"],
         ].map(([key, action]) => (
           <span key={action} className="flex items-center gap-2">
-            <kbd className="rounded-[3px] bg-muted px-1.5 py-0.5 font-sans text-foreground">{key}</kbd>
+            <kbd className="rounded-cell bg-muted px-1.5 py-0.5 font-sans text-foreground">{key}</kbd>
             {action}
           </span>
         ))}
@@ -251,25 +265,23 @@ function Option({
   market,
   active,
   favorite,
-  onActive,
   onChoose,
   onFavorite,
 }: {
   market: Market
   active: boolean
   favorite: boolean
-  onActive: () => void
   onChoose: () => void
   onFavorite: () => void
 }) {
-  const price = market.mid ?? market.mark
+  const price = market.mark
   const decimals = priceDecimals(price, market.szDecimals)
   const change = changeOf(market)
   const tone = change.value >= 0 ? "text-bid" : "text-ask"
   return (
     <li
       data-active={active}
-      className="flex items-center rounded-[3px] border-b border-line/60 data-[active=true]:bg-muted lg:border-none"
+      className="flex items-center border-b border-line/60 data-[active=true]:bg-muted pointer-fine:hover:bg-muted/60 lg:border-none"
     >
       <button
         type="button"
@@ -285,7 +297,6 @@ function Option({
         data-testid="market-option"
         data-coin={market.name}
         onClick={onChoose}
-        onPointerEnter={onActive}
         className={cn(
           "grid min-w-0 flex-1 items-center py-2 pr-2 text-left tabular-nums lg:py-1.5",
           narrow,
@@ -299,8 +310,8 @@ function Option({
               {market.name}-USD
             </span>
             <span className="flex gap-1">
-              <span className="w-fit rounded-[3px] bg-primary/15 px-1 text-primary">{market.maxLeverage}x</span>
-              {market.delisted && <span className="rounded-[3px] bg-muted px-1 text-muted-foreground">delisted</span>}
+              <span className="w-fit rounded-cell bg-primary/15 px-1 text-primary">{market.maxLeverage}x</span>
+              {market.delisted && <span className="rounded-cell bg-muted px-1 text-muted-foreground">delisted</span>}
             </span>
           </span>
         </span>

@@ -1,4 +1,5 @@
 import { queryOptions, experimental_streamedQuery as streamedQuery, useQuery } from "@tanstack/react-query"
+import { live } from "./client"
 import { feed } from "./feed"
 import type { Coin } from "./hyperliquid"
 import { paced } from "./paced"
@@ -27,7 +28,7 @@ type Context = {
 
 type Listing = { name: string; szDecimals: number; maxLeverage: number; isDelisted?: boolean }
 
-export const INFO_URL = "https://api.hyperliquid.xyz/info"
+const INFO_URL = "https://api.hyperliquid.xyz/info"
 
 function statsOf(context: Context): Stats {
   const mark = Number(context.markPx)
@@ -42,7 +43,7 @@ function statsOf(context: Context): Stats {
   }
 }
 
-export const marketsQuery = queryOptions({
+const marketsQuery = queryOptions({
   queryKey: ["markets"],
   queryFn: async ({ signal }) => {
     const response = await fetch(INFO_URL, {
@@ -51,6 +52,7 @@ export const marketsQuery = queryOptions({
       body: JSON.stringify({ type: "metaAndAssetCtxs" }),
       signal,
     })
+    if (!response.ok) throw new Error(`The market list failed with ${response.status}`)
     const [meta, contexts] = (await response.json()) as [{ universe: Listing[] }, Context[]]
     return meta.universe.map(
       (listing, index): Market => ({
@@ -63,6 +65,7 @@ export const marketsQuery = queryOptions({
     )
   },
   staleTime: 10_000,
+  retry: 2,
 })
 
 export function useMarkets<T>(select: (markets: Market[]) => T, live = false) {
@@ -70,6 +73,14 @@ export function useMarkets<T>(select: (markets: Market[]) => T, live = false) {
 }
 
 export const useMarket = (coin: Coin) => useMarkets((markets) => markets.find((market) => market.name === coin))
+
+export function useListing(coin: Coin) {
+  const { data, isError, refetch } = useQuery({
+    ...marketsQuery,
+    select: (markets) => markets.some((market) => market.name === coin),
+  })
+  return { listed: data, failed: isError, retry: () => refetch() }
+}
 
 async function* statsFrames(coin: Coin, signal: AbortSignal) {
   let latest: Context | undefined
@@ -82,9 +93,10 @@ async function* statsFrames(coin: Coin, signal: AbortSignal) {
   for await (const _ of updates) if (latest) yield statsOf(latest)
 }
 
-export const statsQuery = (coin: Coin) =>
+const statsQuery = (coin: Coin) =>
   queryOptions({
     queryKey: ["stats", coin],
+    ...live,
     queryFn: streamedQuery({
       streamFn: ({ signal }) => statsFrames(coin, signal),
       reducer: (_: Stats | null, next: Stats) => next,
@@ -93,12 +105,12 @@ export const statsQuery = (coin: Coin) =>
   })
 
 export function useStats(coin: Coin): Stats | undefined {
-  const live = useQuery(statsQuery(coin)).data
   const listed = useMarket(coin)
+  const live = useQuery({ ...statsQuery(coin), enabled: listed !== undefined }).data
   return live ?? listed
 }
 
 export const changeOf = ({ mark, prevDay }: Stats) => ({
   value: mark - prevDay,
-  percent: ((mark - prevDay) / prevDay) * 100,
+  percent: prevDay ? ((mark - prevDay) / prevDay) * 100 : 0,
 })

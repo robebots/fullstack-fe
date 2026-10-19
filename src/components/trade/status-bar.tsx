@@ -1,25 +1,20 @@
 "use client"
 
 import { cn } from "cn"
+import { useAtom } from "jotai"
+import { frameStatsAtom } from "@/lib/prefs"
 import { useFeedStatus } from "@/lib/status"
-
-const LINKS = [
-  { label: "Docs", href: "https://devnet.api.fullstack.trade/docs/api/" },
-  { label: "Support", href: "https://www.fullstack.trade/" },
-  { label: "Terms", href: "https://www.fullstack.trade/" },
-  { label: "Privacy Policy", href: "https://www.fullstack.trade/" },
-]
+import { FrameStats } from "../frame-stats"
 
 export function StatusBar() {
   const status = useFeedStatus()
   const live = status === "live"
+  const [stats, setStats] = useAtom(frameStatsAtom)
   return (
     <footer className="flex h-7 shrink-0 items-center justify-between px-3 text-xs text-muted-foreground">
       <span
-        data-testid="feed-status"
-        data-status={status}
         className={cn(
-          "flex items-center gap-1.5 rounded-[3px] border px-2 py-0.5",
+          "flex items-center gap-1.5 rounded-cell border px-2 py-0.5",
           live ? "border-bid/40 text-bid" : "border-primary/40 text-primary",
         )}
       >
@@ -27,12 +22,24 @@ export function StatusBar() {
         {live ? "Online" : "Connecting"}
       </span>
       <span className="flex gap-4">
-        {LINKS.map((link) => (
-          <a key={link.label} href={link.href} target="_blank" rel="noreferrer" className="hover:text-foreground">
-            {link.label}
-          </a>
-        ))}
+        <button
+          type="button"
+          aria-pressed={stats}
+          onClick={() => setStats(!stats)}
+          className={cn("hover:text-foreground", stats && "text-primary")}
+        >
+          FPS
+        </button>
+        <a
+          href="https://devnet.api.fullstack.trade/docs/api/"
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-foreground"
+        >
+          Docs
+        </a>
       </span>
+      {stats && <FrameStats className="fixed bottom-9 left-2 z-40" />}
     </footer>
   )
 }

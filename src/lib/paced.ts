@@ -14,7 +14,17 @@ export async function* paced(signal: AbortSignal, subscribe: (changed: () => voi
       if (!dirty) await new Promise<void>((resolve) => (wake = resolve))
       const wait = published + PUBLISH_MS - performance.now()
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
-      await new Promise<number>(requestAnimationFrame)
+      await new Promise<void>((resolve) => {
+        const frame = requestAnimationFrame(() => resolve())
+        signal.addEventListener(
+          "abort",
+          () => {
+            cancelAnimationFrame(frame)
+            resolve()
+          },
+          { once: true },
+        )
+      })
       if (signal.aborted) return
       dirty = false
       published = performance.now()

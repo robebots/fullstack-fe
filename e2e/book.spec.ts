@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
-import { cells, ladder, openBook, type Quote, rows, sizes, waitForSubscriptions } from "./feed"
+import { cells, ladder, mockFeed, openBook, type Quote, rows, sizes, waitForSubscriptions } from "./feed"
 
 const bids = ladder(81_000, -1, sizes(20))
 const asks = ladder(81_001, 1, sizes(20))
@@ -62,12 +62,27 @@ test("switching precision requests the new depth and ignores pushes until the ne
   await expect.poll(() => feed.unsubscribed).toEqual([{ type: "l2Book", coin: "BTC", fast: true }])
   await expect.poll(() => feed.requests.at(-1)).toEqual({ type: "l2Book", coin: "BTC", nSigFigs: 4 })
   feed.fast("BTC", ladder(81_000, -1, nine), ladder(81_001, 1, nine))
-  await page.waitForTimeout(150)
+  feed.bbo("BTC", [80_995, 1], [81_005, 1])
+  await expect(page.getByTestId("spread")).toHaveText(/^Spread\s*10\s*0\.012%$/)
   await expect(cells(page, "bids", 0)).toHaveCount(0)
   for (const subscription of fresh) feed.ack(subscription)
   feed.book("BTC", ladder(81_000, -10, sizes(20)), ladder(81_010, 10, sizes(20)), 4)
   await expect(cells(page, "bids", 1)).toHaveText(["80,990", "2.00000", "3.00000"])
   await expect(page.getByLabel("Precision")).toHaveText(/^10\b/)
+})
+
+test("the book keeps streaming after switching precision away and back", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  await page.getByLabel("Precision").click()
+  await page.getByRole("option", { name: /^10\s*4 sig figs$/ }).click()
+  await waitForSubscriptions(feed, 4)
+  await page.getByLabel("Precision").click()
+  await page.getByRole("option", { name: /^1\s*full$/ }).click()
+  await waitForSubscriptions(feed, 5)
+  feed.fast("BTC", ladder(81_010, -1, nine), ladder(81_011, 1, nine))
+  await expect(cells(page, "bids", 0)).toHaveText(["81,010", "9.00000", "9.00000"])
 })
 
 test("precision options show live tick sizes and collapse duplicates", async ({ page }) => {
@@ -138,9 +153,10 @@ test("both tabs keep streaming while hidden", async ({ page }) => {
   await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
   await page.getByRole("tab", { name: "Trades" }).click()
   feed.book("BTC", ladder(81_005, -1, sizes(20)), ladder(81_006, 1, sizes(20)))
-  await page.waitForTimeout(700)
-  await page.getByRole("tab", { name: "Order Book" }).click()
   await expect(cells(page, "bids", 0)).toHaveText(["81,005", "1.00000", "1.00000"])
+  await page.getByRole("tab", { name: "Order Book" }).click()
+  feed.trades("BTC", [{ side: "B", px: 81_006, sz: 0.5, time: Date.UTC(2026, 9, 18, 12), tid: 9 }])
+  await expect(page.getByTestId("trades").locator(":scope > div")).toHaveCount(1)
   expect(feed.subscribed).toHaveLength(3)
   expect(feed.unsubscribed).toHaveLength(0)
 })
@@ -176,7 +192,7 @@ test("hovering a level shows distance from mid, average price and totals", async
   await rows(page, "bids").nth(2).hover()
   const card = page.getByTestId("hover-card")
   await expect(card).toContainText("Distance from Mid0.0023%")
-  await expect(card).toContainText("Average Price80,999")
+  await expect(card).toContainText("Average Price80,998.7")
   await expect(card).toContainText("Total (BTC)6.00000")
   await expect(card).toContainText("Total (USD)485,992")
   await page.mouse.move(1, 1)
@@ -237,21 +253,28 @@ test("stacked and large panels show the book and trades together", async ({ page
   else expect(tape?.x ?? 0).toBeGreaterThan(large?.x ?? 0)
 })
 
-test("pauses its streams while hidden and resumes when shown", async ({ page }) => {
+test("pauses its streams while hidden and streams again when shown", async ({ page }) => {
   const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
   await page.locator("[data-widget]").evaluate((widget) => {
     widget.style.display = "none"
   })
   await expect.poll(() => feed.unsubscribed.length).toBe(3)
+  const polls = feed.requests.length
+  await page.waitForTimeout(1_200)
+  expect(feed.requests.length).toBe(polls)
   await page.locator("[data-widget]").evaluate((widget) => {
     widget.style.display = ""
   })
   await waitForSubscriptions(feed, 6)
+  feed.fast("BTC", ladder(81_010, -1, nine), ladder(81_011, 1, nine))
+  await expect(cells(page, "bids", 0)).toHaveText(["81,010", "9.00000", "9.00000"])
 })
 
 test("the trade page streams market stats and a book click fills the order ticket", async ({ page, isMobile }) => {
   test.skip(isMobile, "the order form is part of the desktop layout")
-  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   expect(feed.subscribed).toContainEqual({ type: "activeAssetCtx", coin: "BTC" })
   feed.book("BTC", bids, asks)
   await expect(page.getByTestId("market-bar").filter({ visible: true })).toContainText("40x")
@@ -265,15 +288,16 @@ test("the trade page streams market stats and a book click fills the order ticke
 })
 
 test("search filters by name and Enter switches every subscription to the new market", async ({ page }) => {
-  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   await searchButton(page).click()
+  const field = page.getByPlaceholder("Search")
   const options = page.getByTestId("market-option")
   await expect
     .poll(() => options.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-coin"))))
     .toEqual(["BTC", "ETH", "SOL", "HYPE"])
-  await page.keyboard.type("so")
+  await field.fill("so")
   await expect(options).toHaveCount(1)
-  await page.keyboard.press("Enter")
+  await field.press("Enter")
   await expect(page).toHaveURL(/\/trade\/SOL$/)
   await waitForSubscriptions(feed, 8)
   expect(feed.subscribed.slice(4).map((subscription) => subscription.coin)).toEqual(["SOL", "SOL", "SOL", "SOL"])
@@ -287,13 +311,14 @@ test("search filters by name and Enter switches every subscription to the new ma
 })
 
 test("arrow keys move through results, ⌘K opens search and ⌘S stars a market across reloads", async ({ page }) => {
-  await openBook(page, undefined, "/trade/BTC", 4)
+  await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   await page.keyboard.press("Control+k")
   await expect(page.getByTestId("market-option")).toHaveCount(4)
-  await page.keyboard.press("ArrowDown")
-  await page.keyboard.press("ArrowDown")
+  const field = page.getByPlaceholder("Search")
+  await field.press("ArrowDown")
+  await field.press("ArrowDown")
   await expect(page.locator("[data-active=true]")).toContainText("SOL-USD")
-  await page.keyboard.press("Control+s")
+  await field.press("Control+s")
   await expect(page.getByRole("button", { name: "Remove SOL from favorites" })).toBeVisible()
   await page.reload()
   await page.keyboard.press("Control+k")
@@ -301,9 +326,9 @@ test("arrow keys move through results, ⌘K opens search and ⌘S stars a market
 })
 
 test("strict search hides delisted markets and All shows them", async ({ page }) => {
-  await openBook(page, undefined, "/trade/BTC", 4)
+  await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   await searchButton(page).click()
-  await page.keyboard.type("old")
+  await page.getByPlaceholder("Search").fill("old")
   await expect(page.getByTestId("market-option")).toHaveCount(0)
   await page.getByRole("group", { name: "Listing" }).getByRole("button", { name: "All" }).click()
   await expect(page.getByTestId("market-option")).toHaveCount(1)
@@ -313,10 +338,93 @@ test("strict search hides delisted markets and All shows them", async ({ page })
 
 test("phones get the split book and page tabs like Hyperliquid's mobile view", async ({ page, isMobile }) => {
   test.skip(!isMobile, "the split book is the phone layout")
-  const feed = await openBook(page, undefined, "/trade/BTC", 4)
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   feed.book("BTC", bids, asks)
   await expect(cells(page, "bids", 0)).toHaveText(["1.00000", "81,000"])
   await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000"])
   await page.getByRole("button", { name: "Trades", exact: true }).click()
   await expect(page.getByTestId("trades").filter({ visible: true })).toHaveCount(1)
+})
+
+test("separate takers stay separate, zero hashes get no link, and a reconnect doesn't repeat prints", async ({
+  page,
+}) => {
+  const feed = await openBook(page)
+  const at = Date.UTC(2026, 9, 18, 12, 0, 5)
+  const first = [
+    { side: "B" as const, px: 81_001, sz: 0.1, time: at, tid: 11, users: ["0xa", "0xs"] as [string, string] },
+    { side: "B" as const, px: 81_001, sz: 0.2, time: at, tid: 12, users: ["0xb", "0xs"] as [string, string] },
+    { side: "A" as const, px: 81_000, sz: 0.3, time: at, tid: 13, hash: `0x${"0".repeat(64)}` },
+  ]
+  feed.trades("BTC", first)
+  await page.getByRole("tab", { name: "Trades" }).click()
+  const prints = page.getByTestId("trades").locator(":scope > div")
+  await expect(prints).toHaveCount(3)
+  await expect(prints.nth(0).getByRole("link")).toHaveCount(0)
+  await expect(prints.nth(1).getByRole("link")).toHaveCount(1)
+  await feed.sockets[0].close()
+  await waitForSubscriptions(feed, 6)
+  feed.trades("BTC", [...first, { side: "B", px: 81_002, sz: 0.4, time: at + 1_000, tid: 14 }])
+  await expect(prints).toHaveCount(4)
+})
+
+test("unknown markets show a message and never subscribe", async ({ page }) => {
+  const feed = await mockFeed(page)
+  await page.goto("/trade/NOPE")
+  await expect(page.getByText("Unknown market NOPE").filter({ visible: true })).toBeVisible()
+  expect(feed.subscribed).toEqual([])
+})
+
+test("a failed market list offers a retry that recovers", async ({ page }) => {
+  const feed = await mockFeed(page, 3)
+  await page.goto("/embed/BTC")
+  await page.getByRole("button", { name: "Retry" }).click({ timeout: 15_000 })
+  await waitForSubscriptions(feed, 3)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+})
+
+test("live market stats stream into the bar and Mid fills a price Hyperliquid accepts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the order form is part of the desktop layout")
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  feed.ctx("BTC", { markPx: "82000", oraclePx: "82010.5", midPx: "82212.5", funding: "-0.00002" })
+  const bar = page.getByTestId("market-bar").filter({ visible: true })
+  await expect(bar).toContainText("Mark82,000")
+  await expect(bar).toContainText("Oracle82,011")
+  await expect(bar).toContainText("-0.0020%")
+  await page.getByRole("button", { name: "Mid" }).click()
+  await expect(page.getByTestId("ticket-price")).toHaveValue("82213")
+})
+
+test("opening search pauses the book and closing it streams again", async ({ page }) => {
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  feed.book("BTC", bids, asks)
+  await expect(rows(page, "bids").first()).toContainText("81,000")
+  await page.keyboard.press("Control+k")
+  await expect
+    .poll(() => feed.unsubscribed.map((subscription) => subscription.type).sort())
+    .toEqual(["bbo", "l2Book", "trades"])
+  await page.keyboard.press("Escape")
+  await waitForSubscriptions(feed, 7)
+  feed.fast("BTC", ladder(81_010, -1, nine), ladder(81_011, 1, nine))
+  await expect(rows(page, "bids").first()).toContainText("81,010")
+})
+
+test("switching market resets precision to full", async ({ page }) => {
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  feed.book("BTC", bids, asks)
+  await expect(rows(page, "bids").first()).toContainText("81,000")
+  await page.locator("[aria-label=Precision]:visible").click()
+  await page.getByRole("option", { name: /^10\s*4 sig figs$/ }).click()
+  await waitForSubscriptions(feed, 5)
+  await searchButton(page).click()
+  await page.getByPlaceholder("Search").fill("eth")
+  await page.getByPlaceholder("Search").press("Enter")
+  await expect
+    .poll(() => feed.subscribed.filter((subscription) => subscription.coin === "ETH"))
+    .toContainEqual({
+      type: "l2Book",
+      coin: "ETH",
+      fast: true,
+    })
 })

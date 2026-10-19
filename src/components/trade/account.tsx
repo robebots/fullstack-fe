@@ -1,4 +1,5 @@
 import { cn } from "cn"
+import { underline } from "../styles"
 
 const TABS = ["Balances", "Positions", "Open Orders", "TWAP", "Trade History", "Funding History", "Order History"]
 
@@ -6,16 +7,14 @@ const COLUMNS = ["Market", "Size", "Position Value", "Entry Price", "Mark Price"
 
 export function Account({ className }: { className?: string }) {
   return (
-    <section aria-label="Account" className={cn("flex min-h-0 flex-col rounded-[3px] bg-panel text-xs", className)}>
+    <section aria-label="Account" className={cn("flex min-h-0 flex-col rounded-cell bg-panel text-xs", className)}>
       <div className="flex h-10 shrink-0 items-center gap-5 overflow-x-auto border-b border-line px-3 whitespace-nowrap">
         {TABS.map((tab) => (
           <span
             key={tab}
             className={cn(
-              "relative flex h-full items-center",
-              tab === "Positions"
-                ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
-                : "text-muted-foreground",
+              "flex h-full items-center",
+              tab === "Positions" ? cn(underline, "text-foreground") : "text-muted-foreground",
             )}
           >
             {tab}

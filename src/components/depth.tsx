@@ -6,6 +6,7 @@ import { type CSSProperties, Profiler, type RefObject, useLayoutEffect, useRef }
 import { createPortal } from "react-dom"
 import {
   coinAtom,
+  type Hover,
   hoverAtom,
   type Layout,
   layoutAtom,
@@ -17,10 +18,10 @@ import {
   unitAtom,
 } from "@/lib/atoms"
 import { type Row, sweepOf } from "@/lib/book"
-import { formatNumber, priceDecimals } from "@/lib/format"
-import { decimalsOf, tickSize } from "@/lib/hyperliquid"
+import { formatNumber } from "@/lib/format"
+import { decimalsOf, priceDecimals, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
-import { bar, calm, cell, grid, onRender, row, split } from "./styles"
+import { bar, bone, calm, cell, grid, onRender, row, split } from "./styles"
 
 const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
 
@@ -65,7 +66,11 @@ function useFitRows(ref: RefObject<HTMLDivElement | null>) {
 export function Depth() {
   const layout = useAtomValue(layoutAtom)
   const rows = useAtomValue(rowsAtom)
-  const max = useBook((view) => niceCeil(Math.max(depthOf(view.bids, rows), depthOf(view.asks, rows))))
+  const max = useBook((view) =>
+    niceCeil(
+      Math.max(layout === "asks" ? 0 : depthOf(view.bids, rows), layout === "bids" ? 0 : depthOf(view.asks, rows)),
+    ),
+  )
   return (
     <Profiler id="book" onRender={onRender}>
       <div className="flex min-h-0 flex-1 flex-col" style={{ "--max": max ?? 1 } as CSSProperties}>
@@ -141,14 +146,28 @@ function Split({ rows }: { rows: number }) {
   )
 }
 
+export function Placeholder({ halved, fixed }: { halved?: boolean; fixed?: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(halved ? split : row, fixed ? "h-(--row) shrink-0" : "min-h-0 flex-1", "contain-strict")}
+    >
+      <span aria-hidden className={cn(bone, "w-12")} />
+      {!halved && <span aria-hidden className={cn(bone, "w-14 justify-self-end")} />}
+      <span aria-hidden className={cn(bone, "w-14 justify-self-end")} />
+    </div>
+  )
+}
+
 function Levels({ side, rows, split }: { side: Side; rows: number; split?: boolean }) {
+  const empty = useBook((view) => view[side].length === 0) ?? true
   const szDecimals = useSzDecimals()
   const precision = useAtomValue(precisionAtom)
   const magnitude = useMagnitude()
   const decimals = magnitude === undefined ? 0 : decimalsOf(tickSize(precision, magnitude, szDecimals))
   return Array.from({ length: rows }, (_, slot) => slot).map((slot) => (
     <Profiler key={slot} id={`${side}-${slot}`} onRender={onRender}>
-      <BookRow side={side} index={slot} decimals={decimals} split={split} />
+      <BookRow side={side} index={slot} decimals={decimals} szDecimals={szDecimals} empty={empty} split={split} />
     </Profiler>
   ))
 }
@@ -157,15 +176,18 @@ function BookRow({
   side,
   index,
   decimals,
+  szDecimals,
+  empty,
   split: halved,
 }: {
   side: Side
   index: number
   decimals: number
+  szDecimals: number
+  empty: boolean
   split?: boolean
 }) {
   const level = useBook((view) => view[side][index])
-  const szDecimals = useSzDecimals()
   const usd = useAtomValue(unitAtom) === "usd"
   const selected = useAtomValue(selectedAtom)
   const selectLevel = useSetAtom(selectLevelAtom)
@@ -179,7 +201,7 @@ function BookRow({
     animation.current?.cancel()
     animation.current = flash.current.animate({ opacity: [0, 0.08 + 0.27 * pulse, 0], offset: [0, 0.2, 1] }, 800)
   }, [flashAt, pulse])
-  if (!level) return <div className="min-h-0 flex-1 contain-strict" />
+  if (!level) return empty ? <Placeholder halved={halved} /> : <div className="min-h-0 flex-1 contain-strict" />
   const swept = selected?.side === side && (side === "asks" ? level.px <= selected.px : level.px >= selected.px)
   const fromRight = halved && side === "bids"
   const amount = (coin: number, dollars: number) => (usd ? formatNumber(dollars, 0) : formatNumber(coin, szDecimals))
@@ -193,8 +215,6 @@ function BookRow({
     <button
       type="button"
       aria-pressed={level.px === selected?.px && selected.side === side}
-      data-px={level.px}
-      data-side={side}
       onClick={() => selectLevel({ side, px: level.px })}
       onPointerEnter={(event) => {
         if (event.pointerType !== "mouse") return
@@ -287,10 +307,14 @@ const CARD = { width: 216, height: 104, gap: 8 }
 
 export function HoverCard() {
   const hover = useAtomValue(hoverAtom)
+  return hover ? <Card hover={hover} /> : null
+}
+
+function Card({ hover }: { hover: Hover }) {
   const coin = useAtomValue(coinAtom)
   const szDecimals = useSzDecimals()
-  const sweep = useBook((view) => (hover ? sweepOf(view, hover.side, hover.px) : undefined))
-  if (!hover || !sweep) return null
+  const sweep = useBook((view) => sweepOf(view, hover.side, hover.px))
+  if (!sweep) return null
   const { row, widget, swept } = hover
   const room = widget.left - CARD.width - CARD.gap
   const left =
@@ -327,7 +351,7 @@ export function HoverCard() {
         <span className="text-muted-foreground">Distance from Mid</span>
         <span className="text-right">{formatNumber(sweep.fromMid, 4)}%</span>
         <span className="text-muted-foreground">Average Price</span>
-        <span className="text-right">{formatNumber(sweep.avg, priceDecimals(sweep.avg, szDecimals))}</span>
+        <span className="text-right">{formatNumber(sweep.avg, priceDecimals(sweep.avg, szDecimals) + 1)}</span>
         <span className="text-muted-foreground">Total ({coin})</span>
         <span className="text-right">{formatNumber(sweep.total, szDecimals)}</span>
         <span className="text-muted-foreground">Total (USD)</span>

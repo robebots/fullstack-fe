@@ -1,3 +1,4 @@
+import type { Side } from "./atoms"
 import { feed } from "./feed"
 import type { Bbo, Book, Coin, Level, Precision } from "./hyperliquid"
 import { paced } from "./paced"
@@ -72,8 +73,12 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
   const sources: Sources = {}
   const book = { type: "l2Book", coin, ...(nSigFigs && { nSigFigs }), ...(mantissa && { mantissa }) } as const
   const updates = paced(signal, (changed) => {
+    let pending = false
     const refresh = async () => {
+      if (pending) return
+      pending = true
       const depth = await feed.request<Book>(book)
+      pending = false
       if (!depth || signal.aborted || depth.time <= (sources.depth?.time ?? 0)) return
       sources.depth = depth
       changed()
@@ -95,9 +100,9 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
   for await (const _ of updates) yield { ...sources }
 }
 
-export type Sweep = { total: number; totalUsd: number; avg: number; fromMid: number }
+type Sweep = { total: number; totalUsd: number; avg: number; fromMid: number }
 
-export function sweepOf(view: BookView, side: "asks" | "bids", px: number): Sweep | undefined {
+export function sweepOf(view: BookView, side: Side, px: number): Sweep | undefined {
   const row = view[side].find((level) => level.px === px)
   if (!row || !view.bid || !view.ask) return undefined
   const mid = (view.bid + view.ask) / 2

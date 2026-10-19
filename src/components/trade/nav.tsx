@@ -3,38 +3,39 @@ import { Logo } from "./logo"
 
 const LINKS = ["Trade", "Markets", "Portfolio", "Rewards", "Leaderboard"]
 
-const icon =
-  "grid size-8 place-items-center rounded-[3px] border border-line text-muted-foreground hover:text-foreground"
+const icon = "grid size-8 cursor-not-allowed place-items-center border border-line text-muted-foreground"
 
 export function Nav() {
   return (
     <nav className="flex h-[50px] shrink-0 items-center gap-6 px-3">
-      <button type="button" aria-label="Menu" className={`${icon} lg:hidden`}>
+      <button type="button" disabled aria-label="Menu" className={`${icon} lg:hidden`}>
         <Menu className="size-4" />
       </button>
       <Logo wordmark={false} className="lg:hidden" />
       <Logo className="hidden lg:flex" />
       <ul className="hidden items-center gap-5 text-[13px] text-muted-foreground lg:flex">
         {LINKS.map((link, index) => (
-          <li key={link} className={index === 0 ? "text-foreground" : "hover:text-foreground"}>
+          <li key={link} className={index === 0 ? "text-foreground" : undefined}>
             {link}
           </li>
         ))}
-        <li className="flex items-center gap-1 hover:text-foreground">
+        <li className="flex items-center gap-1">
           More <ChevronDown className="size-3.5" />
         </li>
       </ul>
       <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
-          className="h-8 rounded-[3px] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          disabled
+          title="Wallets don't connect in this demo"
+          className="h-8 cursor-not-allowed bg-primary px-4 text-[13px] font-medium text-primary-foreground"
         >
           Connect
         </button>
-        <button type="button" aria-label="Language" className={icon}>
+        <button type="button" disabled aria-label="Language" className={icon}>
           <Globe className="size-4" />
         </button>
-        <button type="button" aria-label="Settings" className={icon}>
+        <button type="button" disabled aria-label="Settings" className={icon}>
           <Settings className="size-4" />
         </button>
       </div>

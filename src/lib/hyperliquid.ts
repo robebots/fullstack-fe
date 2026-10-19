@@ -18,7 +18,16 @@ export type Book = { coin: Coin; time: number; levels: [Level[], Level[]]; fast?
 
 export type Bbo = { coin: Coin; time: number; bbo: [Level | null, Level | null] }
 
-export type Trade = { coin: Coin; side: "A" | "B"; px: string; sz: string; time: number; tid: number; hash: string }
+export type Trade = {
+  coin: Coin
+  side: "A" | "B"
+  px: string
+  sz: string
+  time: number
+  tid: number
+  hash: string
+  users: [buyer: string, seller: string]
+}
 
 export const magnitudeOf = (price: number) => Math.floor(Math.log10(price))
 
@@ -40,3 +49,8 @@ export function precisionOptions(magnitude: number | undefined, szDecimals: numb
     return [{ precision, tick }]
   })
 }
+
+export const priceDecimals = (price: number, szDecimals: number) =>
+  decimalsOf(tickSize(PRECISIONS[0], magnitudeOf(price), szDecimals))
+
+export const priceInput = (price: number, szDecimals: number) => price.toFixed(priceDecimals(price, szDecimals))

@@ -11,8 +11,8 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm build:profile && pnpm start --port 3100",
-    url: "http://localhost:3100",
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
+    url: "http://localhost:3100/embed/BTC",
+    reuseExistingServer: false,
+    timeout: 300_000,
   },
 })

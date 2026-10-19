@@ -23,9 +23,3 @@ export const formatCompact = (value: number) => `$${compact.format(value)}`
 
 export const formatSigned = (value: number, decimals: number) =>
   `${value >= 0 ? "+" : ""}${formatNumber(value, decimals)}`
-
-export function priceDecimals(price: number, szDecimals: number) {
-  if (!price) return 0
-  const significant = Math.max(0, 4 - Math.floor(Math.log10(Math.abs(price))))
-  return Math.min(6 - szDecimals, significant)
-}

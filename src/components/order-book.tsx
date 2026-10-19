@@ -29,22 +29,22 @@ import {
   precisionAtom,
   selectedAtom,
   setModeAtom,
-  statusAtom,
   type Tab,
   tabAtom,
   unitAtom,
 } from "@/lib/atoms"
 import { sweepOf } from "@/lib/book"
 import { client } from "@/lib/client"
-import { formatNumber, priceDecimals } from "@/lib/format"
-import { type Coin, decimalsOf, PRECISIONS, precisionOptions } from "@/lib/hyperliquid"
-import { useMarkets } from "@/lib/markets"
+import { formatNumber } from "@/lib/format"
+import { type Coin, decimalsOf, PRECISIONS, precisionOptions, priceDecimals } from "@/lib/hyperliquid"
+import { useListing } from "@/lib/markets"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
-import { Depth, HoverCard } from "./depth"
-import { plain } from "./styles"
-import { Tape } from "./tape"
+import { useFeedStatus } from "@/lib/status"
+import { Columns, Depth, HoverCard, Placeholder } from "./depth"
+import { bone, plain } from "./styles"
+import { Tape, TapeSkeleton } from "./tape"
 
-export type { Layout, Mode, PriceSelection }
+export type { Mode, PriceSelection }
 
 const MODES: { value: Mode; label: string }[] = [
   { value: "tab", label: "Tab" },
@@ -59,6 +59,8 @@ const LAYOUTS: { value: Layout; label: string }[] = [
   { value: "asks", label: "Asks only" },
 ]
 
+const SLOTS = Array.from({ length: 20 }, (_, slot) => slot)
+
 const stacked = "flex min-h-0 flex-col [grid-area:1/1] data-hidden:invisible"
 
 const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
@@ -66,29 +68,37 @@ const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} /
 const heading = "flex h-10 shrink-0 items-center border-b border-line px-2.5 text-xs text-foreground"
 
 function useVisible(ref: RefObject<HTMLElement | null>) {
-  const [visible, setVisible] = useState(true)
+  const [onScreen, setOnScreen] = useState(true)
+  const [shown, setShown] = useState(true)
   useEffect(() => {
     if (!ref.current) return
-    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting))
+    const observer = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting))
     observer.observe(ref.current)
-    return () => observer.disconnect()
+    const onVisibility = () => setShown(!document.hidden)
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      observer.disconnect()
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [ref])
-  return visible
+  return onScreen && shown
 }
 
 export function OrderBook({
   market,
-  mode = "tab",
-  layout = "both",
+  defaultMode = "tab",
+  defaultLayout = "both",
   view,
+  paused = false,
   onPriceSelect,
   onModeChange,
   className,
 }: {
   market: Coin
-  mode?: Mode
-  layout?: Layout
+  defaultMode?: Mode
+  defaultLayout?: Layout
   view?: Tab
+  paused?: boolean
   onPriceSelect?: (selection: PriceSelection) => void
   onModeChange?: (mode: Mode) => void
   className?: string
@@ -96,8 +106,8 @@ export function OrderBook({
   const [store] = useState(() => {
     const store = createStore()
     store.set(coinAtom, market)
-    store.set(modeAtom, mode)
-    store.set(layoutAtom, layout)
+    store.set(modeAtom, defaultMode)
+    store.set(layoutAtom, defaultLayout)
     if (view) store.set(tabAtom, view)
     return store
   })
@@ -105,6 +115,7 @@ export function OrderBook({
   useEffect(() => {
     if (store.get(coinAtom) === market) return
     store.set(coinAtom, market)
+    store.set(precisionAtom, PRECISIONS[0])
     store.set(selectedAtom, null)
     store.set(hoverAtom, null)
   }, [store, market])
@@ -113,16 +124,16 @@ export function OrderBook({
   }, [store, view])
   const root = useRef<HTMLDivElement>(null)
   const visible = useVisible(root)
+  const current = useAtomValue(coinAtom, { store }) === market
   return (
     <QueryClientProvider client={client}>
       <Provider store={store}>
         <div
           ref={root}
           data-widget
-          data-paused={!visible}
           className={cn("@container flex h-full min-h-0 flex-col [--row:23px] pointer-coarse:[--row:24px]", className)}
         >
-          {visible && <Widget framed={!view} />}
+          {visible && !paused && current && <Widget framed={!view} />}
         </div>
       </Provider>
     </QueryClientProvider>
@@ -130,16 +141,41 @@ export function OrderBook({
 }
 
 function Widget({ framed }: { framed: boolean }) {
-  const status = useAtomValue(statusAtom)
+  const status = useFeedStatus()
   const mode = useAtomValue(modeAtom)
+  const coin = useAtomValue(coinAtom)
+  const { listed, failed, retry } = useListing(coin)
+  const setHover = useSetAtom(hoverAtom)
+  useEffect(() => () => setHover(null), [setHover])
   return (
     <section
       aria-label="Order book"
       data-testid="status"
       data-status={status}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[3px] bg-panel tabular-nums transition-opacity data-[status=connecting]:opacity-60"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cell bg-panel tabular-nums transition-opacity data-[status=connecting]:opacity-60"
     >
-      {mode === "stacked" ? <Stack /> : mode === "large" ? <Large /> : <Tabbed framed={framed} />}
+      {listed !== false && !failed ? (
+        mode === "stacked" ? (
+          <Stack />
+        ) : mode === "large" ? (
+          <Large />
+        ) : (
+          <Tabbed framed={framed} />
+        )
+      ) : (
+        <div className="grid flex-1 place-items-center p-4 text-center text-xs text-muted-foreground">
+          {failed ? (
+            <span className="flex flex-col items-center gap-2">
+              The market list didn't load.
+              <button type="button" onClick={retry} className="text-primary hover:text-primary/80">
+                Retry
+              </button>
+            </span>
+          ) : (
+            `Unknown market ${coin}`
+          )}
+        </div>
+      )}
       <HoverCard />
     </section>
   )
@@ -148,7 +184,7 @@ function Widget({ framed }: { framed: boolean }) {
 function Tabbed({ framed }: { framed: boolean }) {
   const [tab, setTab] = useAtom(tabAtom)
   const trigger =
-    "h-full flex-none justify-self-center rounded-none px-2.5 text-xs font-normal text-muted-foreground after:bg-brand group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-0.5 data-active:text-foreground pointer-coarse:text-[13px]"
+    "h-full flex-none justify-self-center rounded-none px-2.5 text-xs font-normal text-muted-foreground after:bg-primary group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-0.5 data-active:text-foreground pointer-coarse:text-[13px]"
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value)} className="min-h-0 flex-1 gap-0">
       {framed && (
@@ -172,7 +208,7 @@ function Tabbed({ framed }: { framed: boolean }) {
           <BookPanel />
         </TabsContent>
         <TabsContent value="trades" keepMounted render={panel} className={stacked}>
-          <Tape />
+          <TradesPanel />
         </TabsContent>
       </div>
     </Tabs>
@@ -188,7 +224,7 @@ function Stack() {
       </div>
       <Heading>Trades</Heading>
       <div className="flex min-h-0 flex-[2] flex-col">
-        <Tape />
+        <TradesPanel />
       </div>
     </>
   )
@@ -205,7 +241,7 @@ function Large() {
         Trades
       </Heading>
       <div className="flex min-h-0 flex-col @min-[36rem]:col-start-2 @min-[36rem]:row-start-2">
-        <Tape />
+        <TradesPanel />
       </div>
     </div>
   )
@@ -229,10 +265,7 @@ function PanelMenu({ className }: { className?: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Book settings"
-        className={cn(
-          "grid size-6 place-items-center rounded-sm text-muted-foreground hover:text-foreground",
-          className,
-        )}
+        className={cn("grid size-6 place-items-center text-muted-foreground hover:text-foreground", className)}
       >
         <EllipsisVertical className="size-4" />
       </DropdownMenuTrigger>
@@ -270,20 +303,50 @@ function PanelMenu({ className }: { className?: string }) {
 }
 
 function BookPanel() {
-  const coin = useAtomValue(coinAtom)
-  const listed = useMarkets((markets) => markets.some((market) => market.name === coin))
+  const { listed } = useListing(useAtomValue(coinAtom))
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Controls />
-      {listed === false ? (
-        <p className="grid flex-1 place-items-center text-xs text-muted-foreground">Unknown market {coin}</p>
-      ) : listed ? (
-        <Depth />
+      {listed ? (
+        <>
+          <Controls />
+          <Depth />
+          <SweepStrip />
+        </>
       ) : (
-        <div className="flex-1" />
+        <BookSkeleton />
       )}
-      <SweepStrip />
     </div>
+  )
+}
+
+function BookSkeleton() {
+  return (
+    <>
+      <div className="flex h-8 shrink-0 items-center justify-between px-2.5">
+        <span aria-hidden className={cn(bone, "w-8")} />
+        <span aria-hidden className={cn(bone, "w-10")} />
+      </div>
+      <Columns last="Total" />
+      {["asks", "bids"].map((side) => (
+        <div key={side} aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {SLOTS.map((slot) => (
+            <Placeholder key={slot} fixed />
+          ))}
+        </div>
+      ))}
+    </>
+  )
+}
+
+function TradesPanel() {
+  const { listed } = useListing(useAtomValue(coinAtom))
+  return listed ? (
+    <Tape />
+  ) : (
+    <>
+      <Columns last="Time" />
+      <TapeSkeleton />
+    </>
   )
 }
 

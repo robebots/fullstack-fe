@@ -2,13 +2,15 @@ import { queryOptions, experimental_streamedQuery as streamedQuery, useQuery } f
 import { useAtomValue } from "jotai"
 import { coinAtom, precisionAtom } from "./atoms"
 import { type BookView, bookFrames, EMPTY_VIEW, type Sources, toView } from "./book"
+import { live } from "./client"
 import { type Coin, magnitudeOf, type Precision } from "./hyperliquid"
 import { useMarket } from "./markets"
 import { EMPTY_TAPE, type Print, toTape, tradeFrames } from "./trades"
 
-export const bookQuery = (coin: Coin, precision: Precision) =>
+const bookQuery = (coin: Coin, precision: Precision) =>
   queryOptions({
     queryKey: ["book", coin, precision.id],
+    ...live,
     queryFn: streamedQuery({
       streamFn: ({ signal }) => bookFrames(coin, precision, signal),
       reducer: (view: BookView, sources: Sources) =>
@@ -17,9 +19,10 @@ export const bookQuery = (coin: Coin, precision: Precision) =>
     }),
   })
 
-export const tradesQuery = (coin: Coin) =>
+const tradesQuery = (coin: Coin) =>
   queryOptions({
     queryKey: ["trades", coin],
+    ...live,
     queryFn: streamedQuery({
       streamFn: ({ signal }) => tradeFrames(coin, signal),
       reducer: toTape,

@@ -4,13 +4,17 @@ import { cn } from "cn"
 import { ChevronDown } from "lucide-react"
 import { useState } from "react"
 import { formatNumber } from "@/lib/format"
+import { priceInput } from "@/lib/hyperliquid"
 import { useMarket, useStats } from "@/lib/markets"
+import { underline } from "../styles"
 
 export type Ticket = { side: "buy" | "sell"; price: string }
 
-const chip = "h-8 rounded-[3px] bg-muted text-xs text-foreground hover:bg-accent"
+const chip = "h-8 bg-muted text-xs text-foreground disabled:cursor-not-allowed"
 
-const field = "flex h-9 items-center gap-2 rounded-[3px] border border-line px-2.5 focus-within:border-primary/60"
+const field = "flex h-9 items-center gap-2 border border-line px-2.5 focus-within:border-primary/60"
+
+const entry = "min-w-0 flex-1 bg-transparent text-right tabular-nums outline-none pointer-coarse:text-base"
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -39,35 +43,29 @@ export function OrderForm({
   return (
     <aside
       aria-label="Order ticket"
-      className={cn("flex min-h-0 flex-col gap-3 overflow-y-auto rounded-[3px] bg-panel p-3 text-xs", className)}
+      className={cn("flex min-h-0 flex-col gap-3 overflow-y-auto rounded-cell bg-panel p-3 text-xs", className)}
     >
       <div className="grid grid-cols-3 gap-2">
-        <button type="button" className={chip}>
-          Cross
-        </button>
-        <button type="button" className={chip}>
-          {leverage}x
-        </button>
-        <button type="button" className={chip}>
-          Unified
-        </button>
+        {["Cross", `${leverage}x`, "Unified"].map((label) => (
+          <button key={label} type="button" disabled className={chip}>
+            {label}
+          </button>
+        ))}
       </div>
       <div className="grid h-9 grid-cols-3 border-b border-line">
         {["Market", "Limit", "Pro"].map((type) => (
           <span
             key={type}
             className={cn(
-              "relative grid place-items-center",
-              type === "Limit"
-                ? "text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary"
-                : "text-muted-foreground",
+              "grid place-items-center",
+              type === "Limit" ? cn(underline, "text-foreground") : "text-muted-foreground",
             )}
           >
             {type}
           </span>
         ))}
       </div>
-      <div className="grid h-9 grid-cols-2 rounded-[3px] bg-muted p-0.5">
+      <div className="grid h-9 grid-cols-2 bg-muted p-0.5">
         {(["buy", "sell"] as const).map((side) => (
           <button
             key={side}
@@ -75,7 +73,6 @@ export function OrderForm({
             aria-pressed={ticket.side === side}
             onClick={() => onTicket({ ...ticket, side })}
             className={cn(
-              "rounded-[3px]",
               ticket.side === side
                 ? side === "buy"
                   ? "bg-bid text-black"
@@ -89,35 +86,44 @@ export function OrderForm({
       </div>
       <Row label="Available to Trade" value="0.00 USDC" />
       <Row label="Current Position" value={`0.00000 ${coin}`} />
-      <label className={field}>
-        <span className="text-muted-foreground">Price (USD)</span>
+      <div className={field}>
+        <label htmlFor="ticket-price" className="text-muted-foreground">
+          Price (USD)
+        </label>
         <input
+          id="ticket-price"
           data-testid="ticket-price"
           inputMode="decimal"
           value={ticket.price}
           onChange={(event) => onTicket({ ...ticket, price: event.target.value })}
-          className="min-w-0 flex-1 bg-transparent text-right tabular-nums outline-none"
+          className={entry}
         />
         <button
           type="button"
-          onClick={() => stats?.mid && onTicket({ ...ticket, price: String(stats.mid) })}
-          className="text-primary hover:text-primary/80"
+          disabled={!stats?.mid || !market}
+          onClick={() =>
+            stats?.mid && market && onTicket({ ...ticket, price: priceInput(stats.mid, market.szDecimals) })
+          }
+          className="text-primary hover:text-primary/80 disabled:text-muted-foreground"
         >
           Mid
         </button>
-      </label>
-      <label className={field}>
-        <span className="text-muted-foreground">Size</span>
+      </div>
+      <div className={field}>
+        <label htmlFor="ticket-size" className="text-muted-foreground">
+          Size
+        </label>
         <input
+          id="ticket-size"
           inputMode="decimal"
           value={size}
           onChange={(event) => setSize(event.target.value)}
-          className="min-w-0 flex-1 bg-transparent text-right tabular-nums outline-none"
+          className={entry}
         />
         <span className="flex items-center gap-1">
           {coin} <ChevronDown className="size-3.5 text-muted-foreground" />
         </span>
-      </label>
+      </div>
       <div className="flex items-center gap-3">
         <span className="relative h-1 flex-1 rounded-full bg-muted">
           {[0, 25, 50, 75, 100].map((stop) => (
@@ -128,20 +134,18 @@ export function OrderForm({
             />
           ))}
         </span>
-        <span className="w-12 rounded-[3px] border border-line px-2 py-1 text-right">0 %</span>
+        <span className="w-12 border border-line px-2 py-1 text-right">0 %</span>
       </div>
       {["Reduce Only", "Take Profit / Stop Loss"].map((option) => (
         <label key={option} className="flex items-center gap-2 text-muted-foreground">
-          <input type="checkbox" className="size-3.5 accent-primary" />
+          <input type="checkbox" disabled className="size-3.5 accent-primary" />
           {option}
         </label>
       ))}
-      <button
-        type="button"
-        className="mt-1 h-9 rounded-[3px] bg-primary/15 font-medium text-primary hover:bg-primary/25"
-      >
+      <button type="button" disabled className="mt-1 h-9 cursor-not-allowed bg-primary/15 font-medium text-primary">
         Enable Trading
       </button>
+      <p className="text-muted-foreground">Demo ticket. A click on the book fills side and price. Nothing is sent.</p>
       <div className="flex flex-col gap-2 border-t border-line pt-3">
         <Row label="Liquidation Price" value="N/A" />
         <Row

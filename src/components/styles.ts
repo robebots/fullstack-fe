@@ -11,6 +11,10 @@ export const bar = "absolute inset-x-0 inset-y-px"
 
 export const cell = "relative pointer-fine:hover:font-semibold"
 
+export const underline = "relative after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-primary"
+
+export const bone = "block h-2 rounded-sm bg-line"
+
 export const plain = "h-auto border-none bg-transparent p-0 dark:bg-transparent dark:hover:bg-transparent"
 
 export const calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches

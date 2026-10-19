@@ -1,6 +1,6 @@
 import type { Coin } from "./hyperliquid"
 
-export type Subscription =
+type Subscription =
   | { type: "l2Book"; coin: Coin; nSigFigs?: number; mantissa?: number; fast?: true }
   | { type: "bbo"; coin: Coin }
   | { type: "trades"; coin: Coin }
@@ -23,7 +23,7 @@ const sameSubscription = (a: Wire, b: Wire) =>
   ["type", "coin", "nSigFigs", "mantissa"].every((key) => (a[key] ?? null) === (b[key] ?? null)) &&
   Boolean(a.fast) === Boolean(b.fast)
 
-export class Feed {
+class Feed {
   #url: string
   #socket?: WebSocket
   #entries = new Map<string, Entry>()
