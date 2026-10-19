@@ -159,6 +159,7 @@ const niceCeil = (value: number) => {
 }
 
 export function rescale(scale: number, deepest: number) {
+  if (scale === 0) return niceCeil(deepest * 1.25)
   if (deepest > scale) return niceCeil(deepest)
   const roomy = niceCeil(deepest * 1.25)
   return roomy < scale ? roomy : scale

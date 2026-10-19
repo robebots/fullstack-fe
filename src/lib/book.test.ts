@@ -128,8 +128,9 @@ describe("thin", () => {
 })
 
 describe("rescale", () => {
-  test("starts at the 1-2-5 step that fits", () => {
+  test("starts at the 1-2-5 step that fits with 25% to spare", () => {
     expect(rescale(0, 3.2)).toBe(5)
+    expect(rescale(0, 45)).toBe(100)
   })
 
   test("grows at once when the deepest total overflows", () => {

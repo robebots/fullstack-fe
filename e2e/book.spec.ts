@@ -295,7 +295,7 @@ test("the bar scale holds through small swings and glides when it steps", async 
         }),
       to,
     )
-  book(19)
+  book(15)
   await expect.poll(scale).toBe("20")
   const seen = glide(50)
   for (const [top, expected] of [
