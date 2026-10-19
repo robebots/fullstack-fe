@@ -1,6 +1,6 @@
 # fullstack-fe
 
-A live order book on Hyperliquid's websocket, built for Fullstack's frontend take-home.
+A live order book on Hyperliquid's websocket.
 
 https://fullstack-fe-five.vercel.app
 
