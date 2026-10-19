@@ -47,6 +47,7 @@ api.hyperliquid.xyz/ws     one socket per tab, shared by every widget
 
 - The default `l2Book` subscription pushes every ~5.4 s, so the book layers faster sources and the newest source owns the prices it covers.
 - Book messages don't say which `nSigFigs` they're for, and a stale snapshot beat the new ack in 7 of 24 measured swaps, so pushes are dropped until the ack. A bad subscription kills the socket, so nothing subscribes until the coin is in the market list.
+- Depth requests return 20 levels a side, stamped with a block time ~640 ms old on arrival. A fast move eats those levels before the next poll lands, so the book shows at most 12 rows a side and refetches depth the moment `bbo` or the fast book trades past its edge. At 16 rows, live BTC flashed blank rows 17 times in 2 minutes. At 12 with the refetch, twice, each under 250 ms.
 - The spread reads `bbo`, which is never grouped. Fills merge by side, price, block and taker. A reconnect's 30-trade replay dedupes by trade id, as a set, because ids aren't ordered.
 - Stream queries restart on every mount. Cached stream data otherwise counted as fresh forever and a remount froze the book.
 - The widget pauses offscreen, in a hidden tab, and while search is open. Loading states are skeletons at their final size.
@@ -58,7 +59,7 @@ api.hyperliquid.xyz/ws     one socket per tab, shared by every widget
 <OrderBook market="ETH" defaultMode="large" defaultLayout="split" onPriceSelect={({ coin, side, price }) => {}} />
 ```
 
-`market` and `view` (`book` or `trades`) follow the parent. `defaultMode` and `defaultLayout` set the starting state, which the ⋮ menu changes. It fills its container, fits rows to the height, and pauses when offscreen, in a hidden tab, or `paused`. `/embed/BTC` renders one widget full page. Known limit: two widgets on one coin at different precisions can't both get the fast book, because book messages don't carry `nSigFigs`.
+`market` and `view` (`book` or `trades`) follow the parent. `defaultMode` and `defaultLayout` set the starting state, which the ⋮ menu changes. It fills its container, fits up to 12 rows a side to the height, and pauses when offscreen, in a hidden tab, or `paused`. `/embed/BTC` renders one widget full page. Known limit: two widgets on one coin at different precisions can't both get the fast book, because book messages don't carry `nSigFigs`.
 
 ## Performance
 
@@ -76,7 +77,7 @@ api.hyperliquid.xyz/ws     one socket per tab, shared by every widget
 
 Measured on headless Chromium in a shared VM with no GPU, which paints on the CPU. By hand at a steady 20 msg/s, the trade page keeps the main thread 38% busy on desktop and 2.5% with search open. Most of it is layout: a change at the top of the book moves the total on every deeper row.
 
-Skipped on purpose: canvas (DOM rows hold 60 fps and stay accessible), a worker (the cost is React, style and layout, which can't move), virtualization (40 rows at most), and an animation library.
+Skipped on purpose: canvas (DOM rows hold 60 fps and stay accessible), a worker (the cost is React, style and layout, which can't move), virtualization (24 rows at most), and an animation library.
 
 ## Run
 

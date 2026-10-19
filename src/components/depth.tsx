@@ -23,6 +23,8 @@ import { decimalsOf, priceDecimals, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { bar, bone, calm, cell, grid, onRender, row, split } from "./styles"
 
+const MAX_ROWS = 12
+
 const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
 
 const niceCeil = (value: number) => {
@@ -56,7 +58,7 @@ function useFitRows(ref: RefObject<HTMLDivElement | null>) {
     if (!element) return
     const observer = new ResizeObserver(([entry]) => {
       const least = Number.parseFloat(getComputedStyle(element).getPropertyValue("--row"))
-      setRows(Math.max(1, Math.min(20, Math.floor(entry.contentRect.height / least))))
+      setRows(Math.max(1, Math.min(MAX_ROWS, Math.floor(entry.contentRect.height / least))))
     })
     observer.observe(element)
     return () => observer.disconnect()

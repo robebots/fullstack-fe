@@ -69,6 +69,19 @@ export function toView(sources: Sources, withBbo: boolean, previous: BookView, n
 
 const DEPTH_MS = 500
 
+const touchOf = (source: Book | Bbo) => ("bbo" in source ? source.bbo : [source.levels[0][0], source.levels[1][0]])
+
+export function stale({ depth, fast, bbo }: Sources) {
+  if (!depth) return false
+  const bid = Number(depth.levels[0][0]?.px ?? Number.NEGATIVE_INFINITY)
+  const ask = Number(depth.levels[1][0]?.px ?? Number.POSITIVE_INFINITY)
+  return [fast, bbo].some((source) => {
+    if (!source || source.time <= depth.time) return false
+    const [best, offer] = touchOf(source)
+    return (best && Number(best.px) < bid) || (offer && Number(offer.px) > ask)
+  })
+}
+
 export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision, signal: AbortSignal) {
   const sources: Sources = {}
   const book = { type: "l2Book", coin, ...(nSigFigs && { nSigFigs }), ...(mantissa && { mantissa }) } as const
@@ -82,6 +95,7 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
       if (!depth || signal.aborted || depth.time <= (sources.depth?.time ?? 0)) return
       sources.depth = depth
       changed()
+      if (stale(sources)) refresh()
     }
     refresh()
     const timer = setInterval(refresh, DEPTH_MS)
@@ -89,10 +103,12 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
       () => clearInterval(timer),
       feed.subscribe<Book>({ ...book, fast: true }, (fast) => {
         sources.fast = fast
+        if (stale(sources)) refresh()
         changed()
       }),
       feed.subscribe<Bbo>({ type: "bbo", coin }, (bbo) => {
         sources.bbo = bbo
+        if (stale(sources)) refresh()
         changed()
       }),
     ]

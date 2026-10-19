@@ -71,6 +71,34 @@ test("switching precision requests the new depth and ignores pushes until the ne
   await expect(page.getByLabel("Precision")).toHaveText(/^10\b/)
 })
 
+test("rows leave slack under the 20-level snapshot, so an 8-level move shows no blank rows", async ({ page }) => {
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1400 })
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
+  const slots = await rows(page, "asks").count()
+  feed.fast("BTC", ladder(81_008, -1, nine), ladder(81_009, 1, nine))
+  await expect(cells(page, "asks", 0)).toHaveText(["81,009", "9.00000", "9.00000"])
+  await expect(page.getByTestId("asks").locator(":scope > button")).toHaveCount(slots)
+})
+
+test("a move that eats the depth snapshot refreshes depth at once instead of leaving blank rows", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
+  const slots = await rows(page, "asks").count()
+  const polls = feed.requests.length
+  await expect.poll(() => feed.requests.length, { intervals: [5] }).toBeGreaterThan(polls)
+  const before = feed.requests.length
+  feed.book("BTC", ladder(81_008, -1, sizes(20)), ladder(81_009, 1, sizes(20)))
+  feed.fast("BTC", ladder(81_008, -1, nine), ladder(81_009, 1, nine))
+  await expect.poll(() => feed.requests.length, { timeout: 120, intervals: [5] }).toBeGreaterThan(before)
+  await expect
+    .poll(() => page.getByTestId("asks").locator(":scope > button").count(), { timeout: 250, intervals: [16] })
+    .toBe(slots)
+  await expect(cells(page, "asks", 0)).toHaveText(["81,009", "9.00000", "9.00000"])
+})
+
 test("the book keeps streaming after switching precision away and back", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
@@ -202,10 +230,10 @@ test("hovering a level shows distance from mid, average price and totals", async
 test("rows fill the height the widget is given", async ({ page }) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
-  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 700 })
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 450 })
   await expect(cells(page, "bids", 0)).toHaveCount(3)
   const short = await rows(page, "bids").count()
-  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1100 })
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 900 })
   await expect.poll(() => rows(page, "bids").count()).toBeGreaterThan(short)
   for (const side of ["asks", "bids"] as const) {
     const box = await page.getByTestId(side).boundingBox()
@@ -218,6 +246,7 @@ test("rows fill the height the widget is given", async ({ page }) => {
 })
 
 test("the menu shows one side, both sides or both side by side", async ({ page }) => {
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 480 })
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await expect(cells(page, "bids", 0)).toHaveCount(3)
