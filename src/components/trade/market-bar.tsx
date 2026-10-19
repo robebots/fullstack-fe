@@ -83,7 +83,12 @@ export function MarketBar({ coin, onSearch }: { coin: string; onSearch: () => vo
   return (
     <header data-testid="market-bar" className="flex shrink-0 flex-col gap-3 bg-panel px-3 py-3 text-xs">
       <div className="flex items-center gap-3">
-        <button type="button" aria-label="Search markets" onClick={onSearch} className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Search markets"
+          onClick={onSearch}
+          className="flex items-center gap-2 pointer-coarse:min-h-11"
+        >
           <CoinIcon coin={coin} className="size-7" />
           <span className="flex flex-col items-start">
             <span className="flex items-center gap-1 text-lg leading-tight text-foreground">
@@ -115,7 +120,7 @@ export function MarketBar({ coin, onSearch }: { coin: string; onSearch: () => vo
           aria-label="Market details"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="grid size-8 place-items-center border border-line text-muted-foreground"
+          className="grid size-8 place-items-center border border-line text-muted-foreground pointer-coarse:size-10"
         >
           <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
         </button>

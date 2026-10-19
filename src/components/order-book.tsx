@@ -83,13 +83,11 @@ function useVisible(ref: RefObject<HTMLElement | null>) {
 
 export function OrderBook({
   market,
-  defaultLayout = "both",
   paused = false,
   onModeChange,
   className,
 }: {
   market: Coin
-  defaultLayout?: Layout
   paused?: boolean
   onModeChange?: (mode: Mode) => void
   className?: string
@@ -98,7 +96,6 @@ export function OrderBook({
   const [store] = useState(() => {
     const store = createStore()
     store.set(coinAtom, name)
-    store.set(layoutAtom, defaultLayout)
     return store
   })
   useEffect(() => store.set(listenerAtom, { onModeChange }), [store, onModeChange])
@@ -253,7 +250,10 @@ function PanelMenu({ className }: { className?: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Book settings"
-        className={cn("grid size-6 place-items-center text-muted-foreground hover:text-foreground", className)}
+        className={cn(
+          "grid size-6 place-items-center text-muted-foreground hover:text-foreground pointer-coarse:size-10",
+          className,
+        )}
       >
         <EllipsisVertical className="size-4" />
       </DropdownMenuTrigger>
@@ -314,9 +314,12 @@ function Controls() {
       ? `${option.precision.nSigFigs} sig figs${option.precision.mantissa ? ` ×${option.precision.mantissa}` : ""}`
       : "full",
   }))
-  const trigger = cn(plain, "gap-1 text-xs text-foreground pointer-coarse:text-[13px]")
+  const trigger = cn(
+    plain,
+    "gap-1 text-xs text-foreground pointer-coarse:min-w-11 pointer-coarse:text-[13px] pointer-coarse:data-[size=default]:h-11",
+  )
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between px-2.5">
+    <div className="flex h-8 shrink-0 items-center justify-between px-2.5 pointer-coarse:order-last pointer-coarse:h-11 pointer-coarse:border-t pointer-coarse:border-line">
       <Select
         items={options}
         value={precision.id}

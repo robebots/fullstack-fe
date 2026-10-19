@@ -21,7 +21,7 @@ import { depthOf, MAX_ROWS, rescale, sweepOf } from "@/lib/book"
 import { formatNumber } from "@/lib/format"
 import { decimalsOf, priceDecimals, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
-import { bar, bone, calm, cell, grid, onRender, row, split } from "./styles"
+import { bar, bone, calm, cell, grid, onRender, row, split, stretch } from "./styles"
 
 const boxOf = ({ top, bottom, left, right }: DOMRect) => ({ top, bottom, left, right })
 
@@ -152,10 +152,7 @@ function Split({ rows }: { rows: number }) {
 
 export function Placeholder({ halved, fixed }: { halved?: boolean; fixed?: boolean }) {
   return (
-    <div
-      aria-hidden
-      className={cn(halved ? split : row, fixed ? "h-(--row) shrink-0" : "min-h-0 flex-1", "contain-strict")}
-    >
+    <div aria-hidden className={cn(halved ? split : row, fixed ? "h-(--row) shrink-0" : stretch, "contain-strict")}>
       <span aria-hidden className={cn(bone, "w-12")} />
       {!halved && <span aria-hidden className={cn(bone, "w-14 justify-self-end")} />}
       <span aria-hidden className={cn(bone, "w-14 justify-self-end")} />
@@ -205,7 +202,7 @@ function BookRow({
     animation.current?.cancel()
     animation.current = flash.current.animate({ opacity: [0, 0.08 + 0.27 * pulse, 0], offset: [0, 0.2, 1] }, 800)
   }, [flashAt, pulse])
-  if (!level) return empty ? <Placeholder halved={halved} /> : <div className="min-h-0 flex-1 contain-strict" />
+  if (!level) return empty ? <Placeholder halved={halved} /> : <div className={cn(stretch, "contain-strict")} />
   const swept = selected?.side === side && (side === "asks" ? level.px <= selected.px : level.px >= selected.px)
   const fromRight = halved && side === "bids"
   const amount = (coin: number, dollars: number) => (usd ? formatNumber(dollars, 0) : formatNumber(coin, szDecimals))
@@ -238,7 +235,8 @@ function BookRow({
       }}
       className={cn(
         halved ? split : row,
-        "min-h-0 flex-1 cursor-pointer text-left outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
+        stretch,
+        "cursor-pointer text-left outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
       )}
       style={{ "--total": level.total, "--size": level.sz } as CSSProperties}
     >

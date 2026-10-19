@@ -345,6 +345,27 @@ test("rows fill the height the widget is given", async ({ page }) => {
   }
 })
 
+test("rows never stretch past one and a half times their height, side by side on a tall screen included", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 1400 })
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveCount(3)
+  const pitch = await page
+    .locator("[data-widget]")
+    .evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue("--row")))
+  await choose(page, "Side by side")
+  await expect(cells(page, "bids", 0)).toHaveCount(2)
+  for (const layout of ["Side by side", "Bids and asks"]) {
+    await choose(page, layout)
+    const heights = await rows(page, "bids").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().height),
+    )
+    expect(Math.max(...heights), layout).toBeLessThanOrEqual(pitch * 1.5 + 0.5)
+  }
+})
+
 test("the menu shows one side, both sides or both side by side", async ({ page }) => {
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 480 })
   const feed = await openBook(page)
@@ -451,14 +472,32 @@ test("strict search hides delisted markets and All shows them", async ({ page })
   await expect(page.getByTestId("market-option")).toContainText("delisted")
 })
 
-test("phones open on the split book and wider screens on the stacked one", async ({ page, isMobile }) => {
-  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
-  feed.book("BTC", bids, asks)
-  if (isMobile) {
-    await expect(cells(page, "bids", 0)).toHaveText(["1.00000", "81,000"])
-    await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000"])
-  } else await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
-})
+for (const [width, height] of [
+  [375, 667],
+  [430, 932],
+  [852, 393],
+]) {
+  test(`a ${width}x${height} phone gets a readable book, no sideways scroll and thumb-sized controls`, async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "phone sizes")
+    await page.setViewportSize({ width, height })
+    const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+    feed.book("BTC", bids, asks)
+    await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+    expect(await page.evaluate(() => document.scrollingElement?.scrollWidth ?? 0)).toBeLessThanOrEqual(width)
+    expect(await rows(page, "bids").count()).toBeGreaterThanOrEqual(6)
+    expect((await rows(page, "bids").first().boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24)
+    for (const name of ["Precision", "Units", "Book settings", "Search markets", "Market details"]) {
+      const box = await page.getByRole("button", { name }).or(page.getByRole("combobox", { name })).boundingBox()
+      expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(40)
+    }
+    const controls = await page.getByLabel("Precision").boundingBox()
+    const spread = await page.getByTestId("spread").boundingBox()
+    expect(controls?.y ?? 0).toBeGreaterThan(spread?.y ?? 0)
+  })
+}
 
 test("the loading state is the book's own layout, so nothing moves when data lands", async ({ page }) => {
   let release = () => {}

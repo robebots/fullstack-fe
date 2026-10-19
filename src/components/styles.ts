@@ -7,6 +7,8 @@ export const row = cn(grid, "relative text-xs contain-content pointer-coarse:tex
 
 export const split = "relative grid grid-cols-2 items-center px-2.5 text-xs contain-content pointer-coarse:text-[13px]"
 
+export const stretch = "min-h-0 max-h-[calc(var(--row)*1.5)] flex-1"
+
 export const bar = "absolute inset-x-0 inset-y-px"
 
 export const cell = "relative pointer-fine:hover:font-semibold"

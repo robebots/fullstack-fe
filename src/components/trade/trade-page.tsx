@@ -28,7 +28,6 @@ function Trade() {
   const coin = useMarketName(route)
   const [search, setSearch] = useState(false)
   const [mode, setMode] = useState<Mode>("tab")
-  const [phone] = useState(() => typeof matchMedia === "function" && !matchMedia("(min-width: 1024px)").matches)
   const select = (next: string) => {
     if (next === coin) return
     setRoute(next)
@@ -47,19 +46,13 @@ function Trade() {
   return (
     <main
       className={cn(
-        "mx-auto flex h-dvh w-full flex-col gap-1 bg-background p-1 text-foreground",
+        "mx-auto flex min-h-dvh w-full flex-col gap-1 bg-background p-1 text-foreground lg:h-dvh",
         mode === "large" ? "max-w-3xl" : "max-w-md",
       )}
     >
       <Favorites coin={coin} onSelect={select} />
       <MarketBar coin={coin} onSearch={() => setSearch(true)} />
-      <OrderBook
-        market={coin}
-        defaultLayout={phone ? "split" : "both"}
-        paused={search}
-        onModeChange={setMode}
-        className="min-h-0 flex-1"
-      />
+      <OrderBook market={coin} paused={search} onModeChange={setMode} className="min-h-[30rem] flex-1" />
       <MarketSearch open={search} onOpenChange={setSearch} onSelect={select} />
     </main>
   )
