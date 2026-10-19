@@ -97,11 +97,13 @@ function useVisible(ref: RefObject<HTMLElement | null>) {
 
 export function OrderBook({
   market,
+  defaultLayout = "both",
   paused = false,
   onModeChange,
   className,
 }: {
   market: Coin
+  defaultLayout?: Layout
   paused?: boolean
   onModeChange?: (mode: Mode) => void
   className?: string
@@ -110,6 +112,7 @@ export function OrderBook({
   const [store] = useState(() => {
     const store = createStore()
     store.set(coinAtom, name)
+    store.set(layoutAtom, defaultLayout)
     return store
   })
   useEffect(() => store.set(listenerAtom, { onModeChange }), [store, onModeChange])
@@ -375,23 +378,28 @@ function Controls() {
 }
 
 function SweepStrip() {
-  const selected = useAtomValue(selectedAtom)
-  const setSelected = useSetAtom(selectedAtom)
+  const [selected, setSelected] = useAtom(selectedAtom)
   const coin = useAtomValue(coinAtom)
   const szDecimals = useSzDecimals()
   const sweep = useBook((view) => (selected ? sweepOf(view, selected.side, selected.px) : undefined))
-  if (!selected || !sweep) return null
+  const gone = selected !== null && sweep === undefined
+  useEffect(() => {
+    if (gone) setSelected(null)
+  }, [gone, setSelected])
+  if (!selected) return null
   return (
     <div className="order-first flex h-11 shrink-0 items-center justify-between gap-3 border-line px-2.5 text-xs pointer-fine:hidden pointer-coarse:text-[13px] group-data-[mode=tab]/widget:order-last group-data-[mode=tab]/widget:border-t">
-      <span data-testid="sweep" className="truncate">
-        <span className={selected.side === "asks" ? "text-bid" : "text-ask"}>
-          {selected.side === "asks" ? "Buy" : "Sell"}
-        </span>{" "}
-        {formatNumber(sweep.total, szDecimals)} {coin}
-        <span className="text-muted-foreground"> · avg </span>
-        {formatNumber(sweep.avg, priceDecimals(sweep.avg, szDecimals) + 1)}
-        <span className="text-muted-foreground"> · {formatNumber(sweep.fromMid, 4)}% from mid</span>
-      </span>
+      {sweep && (
+        <span data-testid="sweep" className="truncate">
+          <span className={selected.side === "asks" ? "text-bid" : "text-ask"}>
+            {selected.side === "asks" ? "Buy" : "Sell"}
+          </span>{" "}
+          {formatNumber(sweep.total, szDecimals)} {coin}
+          <span className="text-muted-foreground"> · avg </span>
+          {formatNumber(sweep.avg, priceDecimals(sweep.avg, szDecimals) + 1)}
+          <span className="text-muted-foreground"> · {formatNumber(sweep.fromMid, 4)}% from mid</span>
+        </span>
+      )}
       <button
         type="button"
         aria-label="Clear selection"

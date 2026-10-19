@@ -28,6 +28,7 @@ function Trade() {
   const coin = useMarketName(route)
   const [search, setSearch] = useState(false)
   const [mode, setMode] = useState<Mode>("tab")
+  const [phone] = useState(() => typeof matchMedia === "function" && !matchMedia("(min-width: 1024px)").matches)
   const select = (next: string) => {
     if (next === coin) return
     setRoute(next)
@@ -65,7 +66,13 @@ function Trade() {
         </a>
       </div>
       <MarketBar coin={coin} onSearch={() => setSearch(true)} />
-      <OrderBook market={coin} paused={search} onModeChange={setMode} className="min-h-[30rem] flex-1" />
+      <OrderBook
+        market={coin}
+        defaultLayout={phone ? "split" : "both"}
+        paused={search}
+        onModeChange={setMode}
+        className="min-h-[30rem] flex-1"
+      />
       <footer className="flex h-6 shrink-0 justify-center text-xs text-muted-foreground pointer-coarse:h-10">
         <a
           href="https://robgungor.com"

@@ -347,6 +347,32 @@ test("rows are Hyperliquid's 25 px at any height and in either layout, as many a
   expect(new Set(await heights())).toEqual(new Set([25]))
 })
 
+test("phones open side by side like Hyperliquid and wider screens stacked", async ({ page, isMobile }) => {
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  feed.book("BTC", bids, asks)
+  if (isMobile) {
+    await expect(cells(page, "bids", 0)).toHaveText(["1.00000", "81,000"])
+    await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000"])
+  } else await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+})
+
+test("a tapped level that leaves the book clears itself without moving a row", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the tap strip is the touch view")
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  const slots = await rows(page, "bids").count()
+  const top = (await rows(page, "asks").first().boundingBox())?.y
+  await rows(page, "bids").nth(1).tap()
+  await expect(page.getByTestId("sweep")).toBeVisible()
+  feed.book("BTC", ladder(80_990, -1, sizes(20)), ladder(80_991, 1, sizes(20)))
+  await expect(cells(page, "bids", 0)).toHaveText(["80,990", "1.00000", "1.00000"])
+  await expect(page.getByTestId("sweep")).toHaveCount(0)
+  await expect(page.getByLabel("Precision")).toBeVisible()
+  expect(await rows(page, "bids").count()).toBe(slots)
+  expect((await rows(page, "asks").first().boundingBox())?.y).toBe(top)
+})
+
 test("the column labels sit right on the first row at any height, spare space goes below the book", async ({
   page,
 }) => {
@@ -375,7 +401,7 @@ test("tapping a level on touch keeps every row in place", async ({ page, isMobil
     await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height })
     const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
     feed.book("BTC", bids, asks)
-    await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+    await expect(rows(page, "bids").first()).toContainText("81,000")
     const before = await rows(page, "asks").count()
     const top = (await rows(page, "asks").first().boundingBox())?.y
     await rows(page, "bids").nth(2).tap()
@@ -449,7 +475,7 @@ test("stacked on a phone keeps the controls on top and the book snug against the
   test.skip(!isMobile, "phone layout")
   const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
   feed.book("BTC", bids, asks)
-  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  await expect(rows(page, "bids").first()).toContainText("81,000")
   await choose(page, "Stacked")
   await expect(page.getByTestId("trades")).toBeVisible()
   const controls = await page.getByLabel("Precision").boundingBox()
@@ -551,7 +577,7 @@ for (const [width, height] of [
     await page.setViewportSize({ width, height })
     const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
     feed.book("BTC", bids, asks)
-    await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+    await expect(rows(page, "bids").first()).toContainText("81,000")
     expect(await page.evaluate(() => document.scrollingElement?.scrollWidth ?? 0)).toBeLessThanOrEqual(width)
     expect(await rows(page, "bids").count()).toBeGreaterThanOrEqual(6)
     expect((await rows(page, "bids").first().boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24)
@@ -572,8 +598,8 @@ for (const [width, height] of [
       expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(40)
     }
     const controls = await page.getByLabel("Precision").boundingBox()
-    const spread = await page.getByTestId("spread").boundingBox()
-    expect(controls?.y ?? 0).toBeGreaterThan(spread?.y ?? 0)
+    const book = await rows(page, "bids").last().boundingBox()
+    expect(controls?.y ?? 0).toBeGreaterThan(book?.y ?? 0)
   })
 }
 
