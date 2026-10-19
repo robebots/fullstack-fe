@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { client } from "@/lib/client"
 import { priceInput } from "@/lib/hyperliquid"
-import { useMarket } from "@/lib/markets"
+import { useMarket, useMarketName } from "@/lib/markets"
 import { type Mode, OrderBook, type PriceSelection } from "../order-book"
 import { underline } from "../styles"
 import { Account } from "./account"
@@ -34,8 +34,9 @@ export function TradePage() {
 
 function Trade() {
   const pathname = usePathname()
-  const [coin, setCoin] = useState(() => marketOf(pathname))
-  useEffect(() => setCoin(marketOf(pathname)), [pathname])
+  const [route, setRoute] = useState(() => marketOf(pathname))
+  useEffect(() => setRoute(marketOf(pathname)), [pathname])
+  const coin = useMarketName(route)
   const [search, setSearch] = useState(false)
   const [mode, setMode] = useState<Mode>("tab")
   const [page, setPage] = useState<Page>("Order Book")
@@ -43,7 +44,7 @@ function Trade() {
   const szDecimals = useMarket(coin)?.szDecimals ?? 0
   const select = (next: string) => {
     if (next === coin) return
-    setCoin(next)
+    setRoute(next)
     window.history.pushState(null, "", `/trade/${encodeURIComponent(next)}`)
     setTicket({ side: ticket.side, price: "" })
   }

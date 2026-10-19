@@ -2,7 +2,7 @@
 
 import { cn } from "cn"
 import { useAtomValue, useSetAtom } from "jotai"
-import { type CSSProperties, Profiler, type RefObject, useLayoutEffect, useRef } from "react"
+import { type CSSProperties, Profiler, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   coinAtom,
@@ -17,13 +17,11 @@ import {
   selectLevelAtom,
   unitAtom,
 } from "@/lib/atoms"
-import { type Row, sweepOf } from "@/lib/book"
+import { MAX_ROWS, type Row, sweepOf } from "@/lib/book"
 import { formatNumber } from "@/lib/format"
 import { decimalsOf, priceDecimals, tickSize } from "@/lib/hyperliquid"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { bar, bone, calm, cell, grid, onRender, row, split } from "./styles"
-
-const MAX_ROWS = 12
 
 const depthOf = (rows: Row[], count: number) => rows[Math.min(rows.length, count) - 1]?.total ?? 0
 
@@ -31,6 +29,12 @@ const niceCeil = (value: number) => {
   if (value <= 0) return 1
   const step = 10 ** Math.floor(Math.log10(value))
   return [1, 2, 5, 10].map((m) => m * step).find((ceiling) => ceiling >= value) ?? value
+}
+
+const rescale = (scale: number, deepest: number) => {
+  if (deepest > scale) return niceCeil(deepest)
+  const roomy = niceCeil(deepest * 1.25)
+  return roomy < scale ? roomy : scale
 }
 
 const boxOf = ({ top, bottom, left, right }: DOMRect) => ({ top, bottom, left, right })
@@ -68,14 +72,26 @@ function useFitRows(ref: RefObject<HTMLDivElement | null>) {
 export function Depth() {
   const layout = useAtomValue(layoutAtom)
   const rows = useAtomValue(rowsAtom)
-  const max = useBook((view) =>
-    niceCeil(
-      Math.max(layout === "asks" ? 0 : depthOf(view.bids, rows), layout === "bids" ? 0 : depthOf(view.asks, rows)),
-    ),
-  )
+  const [scale, setScale] = useState(0)
+  const [settled, setSettled] = useState(false)
+  useEffect(() => setSettled(scale > 0), [scale])
+  const max =
+    useBook((view) =>
+      rescale(
+        scale,
+        Math.max(layout === "asks" ? 0 : depthOf(view.bids, rows), layout === "bids" ? 0 : depthOf(view.asks, rows)),
+      ),
+    ) ?? scale
+  if (max !== scale) setScale(max)
   return (
     <Profiler id="book" onRender={onRender}>
-      <div className="flex min-h-0 flex-1 flex-col" style={{ "--max": max ?? 1 } as CSSProperties}>
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          settled && "[transition-property:--max] duration-300 ease-out motion-reduce:transition-none",
+        )}
+        style={{ "--max": max || 1 } as CSSProperties}
+      >
         {layout === "split" ? <Split rows={rows} /> : <Stacked key={layout} layout={layout} rows={rows} />}
       </div>
     </Profiler>
@@ -227,7 +243,7 @@ function BookRow({
         const upward = side === "asks" && !halved
         setHover({
           side,
-          px: level.px,
+          slot: index,
           row,
           widget,
           swept: upward ? { ...column, top: row.top } : { ...column, bottom: row.bottom },
@@ -315,7 +331,10 @@ export function HoverCard() {
 function Card({ hover }: { hover: Hover }) {
   const coin = useAtomValue(coinAtom)
   const szDecimals = useSzDecimals()
-  const sweep = useBook((view) => sweepOf(view, hover.side, hover.px))
+  const sweep = useBook((view) => {
+    const level = view[hover.side][hover.slot]
+    return level && sweepOf(view, hover.side, level.px)
+  })
   if (!sweep) return null
   const { row, widget, swept } = hover
   const room = widget.left - CARD.width - CARD.gap

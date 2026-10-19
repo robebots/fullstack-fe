@@ -64,7 +64,8 @@ export async function mockFeed(page: Page, failures = 0) {
   const requests: Subscription[] = []
   const sockets: WebSocketRoute[] = []
   const depth = new Map<string, unknown>()
-  const options = { autoAck: true, decimals: 1 }
+  const options = { autoAck: true, decimals: 1, answer: true }
+  const unanswered: (() => void)[] = []
   let clock = 1
   const send = (channel: string, data: unknown) => sockets.at(-1)?.send(JSON.stringify({ channel, data }))
   const ack = (subscription: Subscription) =>
@@ -81,8 +82,12 @@ export async function mockFeed(page: Page, failures = 0) {
       const { method, subscription, id, request } = JSON.parse(String(raw))
       if (method === "post") {
         requests.push(request.payload)
-        const data = depth.get(depthKey(request.payload.coin, request.payload.nSigFigs)) ?? null
-        send("post", { id, response: { type: "info", payload: { type: "l2Book", data } } })
+        const reply = () => {
+          const data = depth.get(depthKey(request.payload.coin, request.payload.nSigFigs)) ?? null
+          send("post", { id, response: { type: "info", payload: { type: "l2Book", data } } })
+        }
+        if (options.answer) reply()
+        else unanswered.push(reply)
       }
       if (method === "unsubscribe") unsubscribed.push(subscription)
       if (method !== "subscribe") return
@@ -101,6 +106,9 @@ export async function mockFeed(page: Page, failures = 0) {
     requests,
     sockets,
     ack,
+    answer: () => {
+      for (const reply of unanswered.splice(0)) reply()
+    },
     book: (coin: string, bids: Quote[], asks: Quote[], nSigFigs?: number) =>
       depth.set(depthKey(coin, nSigFigs), { coin, time: clock++, levels: levels(bids, asks) }),
     fast: (coin: string, bids: Quote[], asks: Quote[]) =>

@@ -27,7 +27,7 @@ type Target = { side: Side; px: number }
 
 type Box = { top: number; bottom: number; left: number; right: number }
 
-export type Hover = Target & { row: Box; widget: Box; swept: Box; edge: "top" | "bottom" }
+export type Hover = { side: Side; slot: number; row: Box; widget: Box; swept: Box; edge: "top" | "bottom" }
 
 export type PriceSelection = { coin: Coin; side: "buy" | "sell"; price: number }
 

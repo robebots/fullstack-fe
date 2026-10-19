@@ -82,21 +82,38 @@ test("rows leave slack under the 20-level snapshot, so an 8-level move shows no 
   await expect(page.getByTestId("asks").locator(":scope > button")).toHaveCount(slots)
 })
 
-test("a move that eats the depth snapshot refreshes depth at once instead of leaving blank rows", async ({ page }) => {
+test("a sweep past the depth snapshot refetches it at once and holds the last full book until it lands", async ({
+  page,
+}) => {
   const feed = await openBook(page)
   feed.book("BTC", bids, asks)
   await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
   const slots = await rows(page, "asks").count()
   const polls = feed.requests.length
   await expect.poll(() => feed.requests.length, { intervals: [5] }).toBeGreaterThan(polls)
-  const before = feed.requests.length
-  feed.book("BTC", ladder(81_008, -1, sizes(20)), ladder(81_009, 1, sizes(20)))
-  feed.fast("BTC", ladder(81_008, -1, nine), ladder(81_009, 1, nine))
-  await expect.poll(() => feed.requests.length, { timeout: 120, intervals: [5] }).toBeGreaterThan(before)
-  await expect
-    .poll(() => page.getByTestId("asks").locator(":scope > button").count(), { timeout: 250, intervals: [16] })
-    .toBe(slots)
-  await expect(cells(page, "asks", 0)).toHaveText(["81,009", "9.00000", "9.00000"])
+  await page.waitForTimeout(50)
+  feed.options.answer = false
+  const fewest = page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        let least = Number.POSITIVE_INFINITY
+        const end = performance.now() + 700
+        const sample = () => {
+          least = Math.min(least, document.querySelectorAll("[data-testid=asks] > button").length)
+          if (performance.now() < end) requestAnimationFrame(sample)
+          else resolve(least)
+        }
+        sample()
+      }),
+  )
+  const sent = feed.requests.length
+  feed.bbo("BTC", [81_014, 1], [81_015, 1])
+  await expect.poll(() => feed.requests.length, { timeout: 200, intervals: [5] }).toBeGreaterThan(sent)
+  await expect(cells(page, "asks", 0)).toHaveText(["81,001", "1.00000", "1.00000"])
+  feed.book("BTC", ladder(81_014, -1, sizes(20)), ladder(81_015, 1, sizes(20)))
+  feed.answer()
+  await expect(cells(page, "asks", 0)).toHaveText(["81,015", "1.00000", "1.00000"])
+  expect(await fewest).toBe(slots)
 })
 
 test("the book keeps streaming after switching precision away and back", async ({ page }) => {
@@ -225,6 +242,77 @@ test("hovering a level shows distance from mid, average price and totals", async
   await expect(card).toContainText("Total (USD)485,992")
   await page.mouse.move(1, 1)
   await expect(card).toHaveCount(0)
+})
+
+test("the hover card follows the row under a still mouse as the book moves", async ({ page, isMobile }) => {
+  test.skip(isMobile, "hover needs a mouse")
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 2)).toHaveText(["80,998", "3.00000", "6.00000"])
+  await rows(page, "bids").nth(2).hover()
+  const card = page.getByTestId("hover-card")
+  await expect(card).toContainText("Total (BTC)6.00000")
+  const threes = sizes(20, () => 3)
+  feed.book("BTC", ladder(80_999, -1, threes), ladder(81_000, 1, threes))
+  await expect(cells(page, "bids", 2)).toHaveText(["80,997", "3.00000", "9.00000"])
+  await expect(card).toContainText("Total (BTC)9.00000")
+})
+
+test("the bar scale holds through small swings and glides when it steps", async ({ page }) => {
+  const feed = await openBook(page)
+  const book = (top: number) => {
+    const size = (i: number) => (i ? 0.001 : top)
+    feed.book("BTC", ladder(81_000, -1, sizes(20, size)), ladder(81_001, 1, sizes(20, size)))
+  }
+  const host = page.locator("[style*='--max']").first()
+  const scale = () => host.evaluate((element) => element.style.getPropertyValue("--max"))
+  const glide = (to: number) =>
+    host.evaluate(
+      (element, target) =>
+        new Promise<number[]>((resolve) => {
+          const seen: number[] = []
+          const end = performance.now() + 3_000
+          const sample = () => {
+            const value = Number(getComputedStyle(element).getPropertyValue("--max"))
+            seen.push(value)
+            if (value === target || performance.now() > end) resolve(seen)
+            else requestAnimationFrame(sample)
+          }
+          sample()
+        }),
+      to,
+    )
+  book(19)
+  await expect.poll(scale).toBe("20")
+  const seen = glide(50)
+  for (const [top, expected] of [
+    [21, "50"],
+    [19, "50"],
+    [9, "20"],
+  ] as const) {
+    book(top)
+    await expect(cells(page, "bids", 0)).toHaveText([/^81,000$/, `${top}.00000`, `${top}.00000`])
+    await expect.poll(scale).toBe(expected)
+  }
+  expect((await seen).some((value) => value > 20 && value < 50)).toBe(true)
+})
+
+test("a lost depth reply doesn't stop the depth poll", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  feed.options.answer = false
+  const sent = feed.requests.length
+  await expect.poll(() => feed.requests.length).toBeGreaterThan(sent)
+  feed.options.answer = true
+  feed.book("BTC", ladder(80_990, -1, sizes(20)), ladder(80_991, 1, sizes(20)))
+  await expect(cells(page, "bids", 0)).toHaveText(["80,990", "1.00000", "1.00000"], { timeout: 5_000 })
+})
+
+test("market links ignore case", async ({ page }) => {
+  const feed = await openBook(page, { path: "/trade/eth", subscriptions: 4 })
+  expect(feed.subscribed).toContainEqual({ type: "l2Book", coin: "ETH", fast: true })
+  await expect(page.getByTestId("market-bar").filter({ visible: true })).toContainText("ETH")
 })
 
 test("rows fill the height the widget is given", async ({ page }) => {

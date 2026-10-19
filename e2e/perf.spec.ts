@@ -133,3 +133,25 @@ test("heap grows under 1 MB across a 15 s stream", async ({ page }, info) => {
   await report(info, { sent, beforeKb: Math.round(before / 1024), afterKb: Math.round(after / 1024), growthKb })
   expect(growthKb).toBeLessThan(1024)
 })
+
+test("a long stream keeps a fixed number of abort listeners", async ({ page }) => {
+  const feed = await openBook(page, {
+    init: () => {
+      const add = AbortSignal.prototype.addEventListener
+      window.abortListeners = 0
+      AbortSignal.prototype.addEventListener = function (this: AbortSignal, ...args: Parameters<typeof add>) {
+        if (args[0] === "abort") window.abortListeners = (window.abortListeners ?? 0) + 1
+        return add.apply(this, args)
+      }
+    },
+  })
+  feed.book("BTC", ladder(81_000, -1, sizes(20)), ladder(81_001, 1, sizes(20)))
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  const before = await page.evaluate(() => window.abortListeners ?? 0)
+  for (let tick = 1; tick <= 40; tick++) {
+    feed.bbo("BTC", [81_000, tick], [81_001, tick])
+    await page.waitForTimeout(80)
+  }
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "40.00000", "40.00000"])
+  expect((await page.evaluate(() => window.abortListeners ?? 0)) - before).toBeLessThan(10)
+})

@@ -6,6 +6,7 @@ declare global {
     streamFeed?: (perSecond: number, ms: number) => Promise<number>
     latencies?: number[]
     eventDurations?: number[]
+    abortListeners?: number
   }
 }
 

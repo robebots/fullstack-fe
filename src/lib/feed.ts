@@ -14,6 +14,8 @@ type Entry = { subscription: Subscription; handlers: Set<Handler>; acked: boolea
 
 type Wire = Record<string, unknown>
 
+const REQUEST_MS = 2_000
+
 const routeOf = (channel: unknown, data: Wire | Wire[]) => {
   const { coin, fast } = Array.isArray(data) ? (data[0] ?? {}) : data
   return `${channel}:${coin}:${fast ? "fast" : ""}`
@@ -63,9 +65,16 @@ class Feed {
     const socket = this.#socket
     if (socket?.readyState !== WebSocket.OPEN) return Promise.resolve(undefined)
     const id = ++this.#nextRequest
-    const reply = new Promise<T | undefined>((resolve) =>
-      this.#requests.set(id, (data) => resolve(data as T | undefined)),
-    )
+    const reply = new Promise<T | undefined>((resolve) => {
+      const timer = setTimeout(() => {
+        this.#requests.delete(id)
+        resolve(undefined)
+      }, REQUEST_MS)
+      this.#requests.set(id, (data) => {
+        clearTimeout(timer)
+        resolve(data as T | undefined)
+      })
+    })
     socket.send(JSON.stringify({ method: "post", id, request: { type: "info", payload } }))
     return reply
   }

@@ -68,6 +68,12 @@
   --ring: #eb8c52;
 }
 
+@property --max {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -1,5 +1,5 @@
 import { queryOptions, experimental_streamedQuery as streamedQuery, useQuery } from "@tanstack/react-query"
-import { live } from "./client"
+import { client, live } from "./client"
 import { feed } from "./feed"
 import type { Coin } from "./hyperliquid"
 import { paced } from "./paced"
@@ -73,6 +73,15 @@ export function useMarkets<T>(select: (markets: Market[]) => T, live = false) {
 }
 
 export const useMarket = (coin: Coin) => useMarkets((markets) => markets.find((market) => market.name === coin))
+
+export const useMarketName = (coin: Coin) =>
+  useQuery(
+    {
+      ...marketsQuery,
+      select: (markets) => markets.find((market) => market.name.toLowerCase() === coin.toLowerCase())?.name,
+    },
+    client,
+  ).data ?? coin
 
 export function useListing(coin: Coin) {
   const { data, isError, refetch } = useQuery({

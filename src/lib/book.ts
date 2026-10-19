@@ -67,7 +67,11 @@ export function toView(sources: Sources, withBbo: boolean, previous: BookView, n
   }
 }
 
+export const MAX_ROWS = 12
+
 const DEPTH_MS = 500
+
+const HOLD_MS = 1000
 
 const touchOf = (source: Book | Bbo) => ("bbo" in source ? source.bbo : [source.levels[0][0], source.levels[1][0]])
 
@@ -82,11 +86,37 @@ export function stale({ depth, fast, bbo }: Sources) {
   })
 }
 
+export function thin(sources: Sources, withBbo: boolean) {
+  const { depth } = sources
+  if (!depth) return false
+  const layers = layersOf(sources, withBbo)
+  return ([0, 1] as const).some((side) => merge(side, layers).length < Math.min(MAX_ROWS, depth.levels[side].length))
+}
+
 export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision, signal: AbortSignal) {
   const sources: Sources = {}
+  let shown: Sources = {}
   const book = { type: "l2Book", coin, ...(nSigFigs && { nSigFigs }), ...(mantissa && { mantissa }) } as const
   const updates = paced(signal, (changed) => {
     let pending = false
+    let hold: ReturnType<typeof setTimeout> | undefined
+    let expired = false
+    const take = () => {
+      if (stale(sources)) refresh()
+      if (!thin(sources, !nSigFigs)) {
+        clearTimeout(hold)
+        hold = undefined
+        expired = false
+      } else if (!expired) {
+        hold ??= setTimeout(() => {
+          expired = true
+          take()
+        }, HOLD_MS)
+        return
+      }
+      shown = { ...sources }
+      changed()
+    }
     const refresh = async () => {
       if (pending) return
       pending = true
@@ -94,26 +124,26 @@ export async function* bookFrames(coin: Coin, { nSigFigs, mantissa }: Precision,
       pending = false
       if (!depth || signal.aborted || depth.time <= (sources.depth?.time ?? 0)) return
       sources.depth = depth
-      changed()
-      if (stale(sources)) refresh()
+      take()
     }
     refresh()
     const timer = setInterval(refresh, DEPTH_MS)
     return [
-      () => clearInterval(timer),
+      () => {
+        clearInterval(timer)
+        clearTimeout(hold)
+      },
       feed.subscribe<Book>({ ...book, fast: true }, (fast) => {
         sources.fast = fast
-        if (stale(sources)) refresh()
-        changed()
+        take()
       }),
       feed.subscribe<Bbo>({ type: "bbo", coin }, (bbo) => {
         sources.bbo = bbo
-        if (stale(sources)) refresh()
-        changed()
+        take()
       }),
     ]
   })
-  for await (const _ of updates) yield { ...sources }
+  for await (const _ of updates) yield shown
 }
 
 type Sweep = { total: number; totalUsd: number; avg: number; fromMid: number }

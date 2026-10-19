@@ -3,28 +3,26 @@ const PUBLISH_MS = 50
 export async function* paced(signal: AbortSignal, subscribe: (changed: () => void) => (() => void)[]) {
   let dirty = false
   let wake = () => {}
+  let interrupt = () => {}
   const stops = subscribe(() => {
     dirty = true
     wake()
   })
-  signal.addEventListener("abort", () => wake(), { once: true })
+  signal.addEventListener("abort", () => interrupt(), { once: true })
+  const until = (start: (resolve: () => void) => void) =>
+    signal.aborted
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          interrupt = resolve
+          start(resolve)
+        })
   let published = Number.NEGATIVE_INFINITY
   try {
     while (!signal.aborted) {
-      if (!dirty) await new Promise<void>((resolve) => (wake = resolve))
+      if (!dirty) await until((resolve) => (wake = resolve))
       const wait = published + PUBLISH_MS - performance.now()
-      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
-      await new Promise<void>((resolve) => {
-        const frame = requestAnimationFrame(() => resolve())
-        signal.addEventListener(
-          "abort",
-          () => {
-            cancelAnimationFrame(frame)
-            resolve()
-          },
-          { once: true },
-        )
-      })
+      if (wait > 0) await until((resolve) => setTimeout(resolve, wait))
+      await until((resolve) => requestAnimationFrame(() => resolve()))
       if (signal.aborted) return
       dirty = false
       published = performance.now()

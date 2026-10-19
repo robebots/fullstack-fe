@@ -37,7 +37,7 @@ import { sweepOf } from "@/lib/book"
 import { client } from "@/lib/client"
 import { formatNumber } from "@/lib/format"
 import { type Coin, decimalsOf, PRECISIONS, precisionOptions, priceDecimals } from "@/lib/hyperliquid"
-import { useListing } from "@/lib/markets"
+import { useListing, useMarketName } from "@/lib/markets"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { useFeedStatus } from "@/lib/status"
 import { Columns, Depth, HoverCard, Placeholder } from "./depth"
@@ -103,9 +103,10 @@ export function OrderBook({
   onModeChange?: (mode: Mode) => void
   className?: string
 }) {
+  const name = useMarketName(market)
   const [store] = useState(() => {
     const store = createStore()
-    store.set(coinAtom, market)
+    store.set(coinAtom, name)
     store.set(modeAtom, defaultMode)
     store.set(layoutAtom, defaultLayout)
     if (view) store.set(tabAtom, view)
@@ -113,18 +114,18 @@ export function OrderBook({
   })
   useEffect(() => store.set(listenerAtom, { onPriceSelect, onModeChange }), [store, onPriceSelect, onModeChange])
   useEffect(() => {
-    if (store.get(coinAtom) === market) return
-    store.set(coinAtom, market)
+    if (store.get(coinAtom) === name) return
+    store.set(coinAtom, name)
     store.set(precisionAtom, PRECISIONS[0])
     store.set(selectedAtom, null)
     store.set(hoverAtom, null)
-  }, [store, market])
+  }, [store, name])
   useEffect(() => {
     if (view) store.set(tabAtom, view)
   }, [store, view])
   const root = useRef<HTMLDivElement>(null)
   const visible = useVisible(root)
-  const current = useAtomValue(coinAtom, { store }) === market
+  const current = useAtomValue(coinAtom, { store }) === name
   return (
     <QueryClientProvider client={client}>
       <Provider store={store}>
