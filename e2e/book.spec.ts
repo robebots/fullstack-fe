@@ -347,6 +347,44 @@ test("rows are Hyperliquid's 25 px at any height and in either layout, as many a
   expect(new Set(await heights())).toEqual(new Set([25]))
 })
 
+test("the column labels sit right on the first row at any height, spare space goes below the book", async ({
+  page,
+}) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveCount(3)
+  for (const height of [700, 712, 724, 736]) {
+    await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height })
+    await page.waitForTimeout(100)
+    const gap = await page.evaluate(() => {
+      const header = [...document.querySelectorAll("[data-widget] span")].find((span) =>
+        span.textContent?.startsWith("Size ("),
+      )?.parentElement
+      const top = Math.min(
+        ...[...document.querySelectorAll("[data-testid=asks] > *")].map((row) => row.getBoundingClientRect().top),
+      )
+      return Math.round(top - (header?.getBoundingClientRect().bottom ?? 0))
+    })
+    expect(gap, `${height}px tall`).toBe(0)
+  }
+})
+
+test("tapping a level on touch keeps every row in place", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the tap strip is the touch view")
+  for (const height of [760, 780, 800]) {
+    await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height })
+    const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+    feed.book("BTC", bids, asks)
+    await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+    const before = await rows(page, "asks").count()
+    const top = (await rows(page, "asks").first().boundingBox())?.y
+    await rows(page, "bids").nth(2).tap()
+    await expect(page.getByTestId("sweep")).toBeVisible()
+    expect(await rows(page, "asks").count(), `${height}px tall`).toBe(before)
+    expect((await rows(page, "asks").first().boundingBox())?.y, `${height}px tall`).toBe(top)
+  }
+})
+
 test("the menu shows one side, both sides or both side by side", async ({ page }) => {
   await page.setViewportSize({ width: page.viewportSize()?.width ?? 400, height: 480 })
   const feed = await openBook(page)
@@ -376,12 +414,59 @@ test("stacked and large panels show the book and trades together", async ({ page
   const book = await page.getByTestId("bids").boundingBox()
   let tape = await page.getByTestId("trades").boundingBox()
   expect(tape?.y ?? 0).toBeGreaterThan(book?.y ?? 0)
-  await choose(page, "Large")
+  await page.getByLabel("Book settings").click()
+  await expect(page.getByRole("menuitemradio", { name: "Stacked" })).toBeVisible()
+  if (isMobile) {
+    await expect(page.getByRole("menuitemradio", { name: "Large" })).toHaveCount(0)
+    return
+  }
+  await page.getByRole("menuitemradio", { name: "Large" }).click()
   await expect(page.getByTestId("trades")).toBeVisible()
   tape = await page.getByTestId("trades").boundingBox()
   const large = await page.getByTestId("bids").boundingBox()
-  if (isMobile) expect(tape?.y ?? 0).toBeGreaterThan(large?.y ?? 0)
-  else expect(tape?.x ?? 0).toBeGreaterThan(large?.x ?? 0)
+  expect(tape?.x ?? 0).toBeGreaterThan(large?.x ?? 0)
+})
+
+test("switching panel mode moves the book and the tape without rebuilding them", async ({ page }) => {
+  const feed = await openBook(page)
+  feed.book("BTC", bids, asks)
+  feed.trades("BTC", [{ side: "B", px: 81_001, sz: 0.1, time: 1, tid: 1 }])
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  await expect(page.getByTestId("trades").locator(":scope > div")).toHaveCount(1)
+  const row = await rows(page, "bids").first().elementHandle()
+  const print = await page.getByTestId("trades").locator(":scope > div").first().elementHandle()
+  for (const mode of ["Stacked", "Tab", "Stacked"]) {
+    await choose(page, mode)
+    expect(await row?.evaluate((element) => element.isConnected), mode).toBe(true)
+    expect(await print?.evaluate((element) => element.isConnected), mode).toBe(true)
+  }
+})
+
+test("stacked on a phone keeps the controls on top and the book snug against the trades", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "phone layout")
+  const feed = await openBook(page, { path: "/trade/BTC", subscriptions: 4 })
+  feed.book("BTC", bids, asks)
+  await expect(cells(page, "bids", 0)).toHaveText(["81,000", "1.00000", "1.00000"])
+  await choose(page, "Stacked")
+  await expect(page.getByTestId("trades")).toBeVisible()
+  const controls = await page.getByLabel("Precision").boundingBox()
+  const firstAsk = await rows(page, "asks").last().boundingBox()
+  expect(controls?.y ?? 0).toBeLessThan(firstAsk?.y ?? 0)
+  const gap = await page.evaluate(() => {
+    const bids = [...document.querySelectorAll("[data-testid=bids] > *")].at(-1)?.getBoundingClientRect()
+    const trades = [...document.querySelectorAll("[data-widget] span")]
+      .find((span) => span.textContent === "Trades")
+      ?.closest("div")
+      ?.getBoundingClientRect()
+    return Math.round((trades?.top ?? 0) - (bids?.bottom ?? 0))
+  })
+  expect(gap).toBeLessThanOrEqual(1)
+  expect(await page.evaluate(() => document.scrollingElement?.scrollHeight ?? 0)).toBeLessThanOrEqual(
+    page.viewportSize()?.height ?? 0,
+  )
 })
 
 test("pauses its streams while hidden and streams again when shown", async ({ page }) => {

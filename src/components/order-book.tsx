@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query"
 import { cn } from "cn"
 import { createStore, Provider, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { EllipsisVertical, X } from "lucide-react"
-import { type ComponentProps, type ReactNode, type RefObject, useEffect, useRef, useState } from "react"
+import { type ReactNode, type RefObject, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   coinAtom,
   hoverAtom,
@@ -28,6 +27,7 @@ import {
   precisionAtom,
   selectedAtom,
   setModeAtom,
+  type Tab,
   tabAtom,
   unitAtom,
 } from "@/lib/atoms"
@@ -39,7 +39,7 @@ import { useListing, useMarketName } from "@/lib/markets"
 import { useBook, useMagnitude, useSzDecimals } from "@/lib/queries"
 import { useFeedStatus } from "@/lib/status"
 import { Depth, HoverCard } from "./depth"
-import { plain } from "./styles"
+import { plain, underline } from "./styles"
 import { Tape } from "./tape"
 
 export type { Mode }
@@ -57,11 +57,25 @@ const LAYOUTS: { value: Layout; label: string }[] = [
   { value: "asks", label: "Asks only" },
 ]
 
-const stacked = "flex min-h-0 flex-col [grid-area:1/1] data-hidden:invisible"
-
-const panel = ({ hidden, ...props }: ComponentProps<"div">) => <div {...props} />
+const TABS: { value: Tab; label: string }[] = [
+  { value: "book", label: "Order Book" },
+  { value: "trades", label: "Trades" },
+]
 
 const heading = "flex h-10 shrink-0 items-center border-b border-line px-2.5 text-xs text-foreground"
+
+const roomyQuery = "(min-width: 600px)"
+
+const useRoomy = () =>
+  useSyncExternalStore(
+    (onChange) => {
+      const query = matchMedia(roomyQuery)
+      query.addEventListener("change", onChange)
+      return () => query.removeEventListener("change", onChange)
+    },
+    () => matchMedia(roomyQuery).matches,
+    () => true,
+  )
 
 function useVisible(ref: RefObject<HTMLElement | null>) {
   const [onScreen, setOnScreen] = useState(false)
@@ -136,16 +150,11 @@ function Widget() {
       aria-label="Order book"
       data-testid="status"
       data-status={status}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-cell bg-panel tabular-nums transition-opacity data-[status=connecting]:opacity-60"
+      data-mode={mode}
+      className="group/widget flex min-h-0 flex-1 flex-col overflow-hidden rounded-cell bg-panel tabular-nums transition-opacity data-[status=connecting]:opacity-60"
     >
       {listed !== false && !failed ? (
-        mode === "stacked" ? (
-          <Stack />
-        ) : mode === "large" ? (
-          <Large />
-        ) : (
-          <Tabbed />
-        )
+        <Panels />
       ) : (
         <div className="grid flex-1 place-items-center p-4 text-center text-xs text-muted-foreground">
           {failed ? (
@@ -165,66 +174,68 @@ function Widget() {
   )
 }
 
-function Tabbed() {
+function Panels() {
+  const mode = useAtomValue(modeAtom)
   const [tab, setTab] = useAtom(tabAtom)
-  const trigger =
-    "h-full flex-none justify-self-center rounded-none px-2.5 text-xs font-normal text-muted-foreground after:bg-primary group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-0.5 data-active:text-foreground pointer-coarse:text-[13px]"
+  const tabbed = mode === "tab"
+  const large = mode === "large"
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(value)} className="min-h-0 flex-1 gap-0">
-      <div className="relative shrink-0 border-b border-line">
-        <TabsList
-          variant="line"
-          className="grid w-full grid-cols-2 rounded-none p-0 pr-8 group-data-horizontal/tabs:h-10"
-        >
-          <TabsTrigger value="book" className={trigger}>
-            Order Book
-          </TabsTrigger>
-          <TabsTrigger value="trades" className={trigger}>
-            Trades
-          </TabsTrigger>
-        </TabsList>
-        <PanelMenu className="absolute top-1/2 right-1.5 -translate-y-1/2" />
-      </div>
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]">
-        <TabsContent value="book" keepMounted render={panel} className={stacked}>
-          <BookPanel />
-        </TabsContent>
-        <TabsContent value="trades" keepMounted render={panel} className={stacked}>
-          <Tape />
-        </TabsContent>
-      </div>
-    </Tabs>
-  )
-}
-
-function Stack() {
-  return (
-    <>
-      <Heading menu>Order Book</Heading>
-      <div className="flex min-h-0 flex-[3] flex-col">
+    <div
+      data-panels
+      className={cn(
+        "grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]",
+        large && "@min-[36rem]:grid-cols-2 @min-[36rem]:grid-rows-[minmax(0,1fr)]",
+      )}
+    >
+      {tabbed && (
+        <div className="relative flex h-10 shrink-0 border-b border-line">
+          <div role="tablist" className="grid flex-1 grid-cols-2 pr-8">
+            {TABS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="tab"
+                aria-selected={tab === option.value}
+                onClick={() => setTab(option.value)}
+                className={cn(
+                  "h-full justify-self-center px-2.5 text-xs pointer-coarse:text-[13px]",
+                  tab === option.value
+                    ? cn(underline, "text-foreground")
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <PanelMenu className="absolute top-1/2 right-1.5 -translate-y-1/2" />
+        </div>
+      )}
+      <section
+        data-panel="book"
+        role={tabbed ? "tabpanel" : undefined}
+        aria-label="Order Book"
+        className={cn(
+          "flex min-h-0 flex-col",
+          tabbed ? cn("col-start-1 row-start-2", tab !== "book" && "invisible") : "row-start-1",
+          large && "@min-[36rem]:border-r @min-[36rem]:border-line",
+        )}
+      >
+        {!tabbed && <Heading menu={!large}>Order Book</Heading>}
         <BookPanel />
-      </div>
-      <Heading>Trades</Heading>
-      <div className="flex min-h-0 flex-[2] flex-col">
+      </section>
+      <section
+        role={tabbed ? "tabpanel" : undefined}
+        aria-label="Trades"
+        className={cn(
+          "flex min-h-0 flex-col",
+          tabbed ? cn("col-start-1 row-start-2", tab !== "trades" && "invisible") : "row-start-2",
+          large && "@min-[36rem]:col-start-2 @min-[36rem]:row-start-1",
+        )}
+      >
+        {!tabbed && <Heading menu={large}>Trades</Heading>}
         <Tape />
-      </div>
-    </>
-  )
-}
-
-function Large() {
-  return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_3fr_auto_2fr] @min-[36rem]:grid-cols-2 @min-[36rem]:grid-rows-[auto_1fr]">
-      <Heading className="@min-[36rem]:col-start-1 @min-[36rem]:row-start-1">Order Book</Heading>
-      <div className="flex min-h-0 flex-col @min-[36rem]:col-start-1 @min-[36rem]:row-start-2 @min-[36rem]:border-r @min-[36rem]:border-line">
-        <BookPanel />
-      </div>
-      <Heading menu className="@min-[36rem]:col-start-2 @min-[36rem]:row-start-1">
-        Trades
-      </Heading>
-      <div className="flex min-h-0 flex-col @min-[36rem]:col-start-2 @min-[36rem]:row-start-2">
-        <Tape />
-      </div>
+      </section>
     </div>
   )
 }
@@ -241,6 +252,7 @@ function Heading({ children, menu, className }: { children: ReactNode; menu?: bo
 function PanelMenu({ className }: { className?: string }) {
   const mode = useAtomValue(modeAtom)
   const setMode = useSetAtom(setModeAtom)
+  const roomy = useRoomy()
   const [layout, setLayout] = useAtom(layoutAtom)
   const setSelected = useSetAtom(selectedAtom)
   return (
@@ -258,7 +270,7 @@ function PanelMenu({ className }: { className?: string }) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Panel</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={mode} onValueChange={(value: Mode) => setMode(value)}>
-            {MODES.map((option) => (
+            {MODES.filter((option) => roomy || option.value !== "large").map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
                 {option.label}
               </DropdownMenuRadioItem>
@@ -301,7 +313,7 @@ function Controls() {
   const coin = useAtomValue(coinAtom)
   const [precision, setPrecision] = useAtom(precisionAtom)
   const [unit, setUnit] = useAtom(unitAtom)
-  const setSelected = useSetAtom(selectedAtom)
+  const [selected, setSelected] = useAtom(selectedAtom)
   const magnitude = useMagnitude()
   const szDecimals = useSzDecimals()
   const options = precisionOptions(magnitude, szDecimals).map((option) => ({
@@ -316,7 +328,12 @@ function Controls() {
     "gap-1 text-xs text-foreground pointer-coarse:min-w-11 pointer-coarse:text-[13px] pointer-coarse:data-[size=default]:h-11",
   )
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between px-2.5 pointer-coarse:order-last pointer-coarse:h-11 pointer-coarse:border-t pointer-coarse:border-line">
+    <div
+      className={cn(
+        "flex h-8 shrink-0 items-center justify-between border-line px-2.5 pointer-coarse:h-11 pointer-coarse:group-data-[mode=tab]/widget:order-last pointer-coarse:group-data-[mode=tab]/widget:border-t",
+        selected && "pointer-coarse:hidden",
+      )}
+    >
       <Select
         items={options}
         value={precision.id}
@@ -365,7 +382,7 @@ function SweepStrip() {
   const sweep = useBook((view) => (selected ? sweepOf(view, selected.side, selected.px) : undefined))
   if (!selected || !sweep) return null
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between gap-3 border-t border-line px-2.5 text-xs pointer-fine:hidden pointer-coarse:text-[13px]">
+    <div className="order-first flex h-11 shrink-0 items-center justify-between gap-3 border-line px-2.5 text-xs pointer-fine:hidden pointer-coarse:text-[13px] group-data-[mode=tab]/widget:order-last group-data-[mode=tab]/widget:border-t">
       <span data-testid="sweep" className="truncate">
         <span className={selected.side === "asks" ? "text-bid" : "text-ask"}>
           {selected.side === "asks" ? "Buy" : "Sell"}

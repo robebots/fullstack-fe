@@ -10,6 +10,7 @@ import {
   hoverAtom,
   type Layout,
   layoutAtom,
+  modeAtom,
   precisionAtom,
   rowsAtom,
   type Side,
@@ -41,18 +42,28 @@ export function Columns({ last }: { last: "Total" | "Time" }) {
   )
 }
 
-function useFitRows(ref: RefObject<HTMLDivElement | null>) {
+const BOOK_SHARE = 0.6
+
+function useFitRows(ref: RefObject<HTMLDivElement | null>, sides: number, spread: number) {
   const setRows = useSetAtom(rowsAtom)
+  const mode = useAtomValue(modeAtom)
   useLayoutEffect(() => {
     const element = ref.current
-    if (!element) return
-    const observer = new ResizeObserver(([entry]) => {
-      const least = Number.parseFloat(getComputedStyle(element).getPropertyValue("--row"))
-      setRows(Math.max(1, Math.min(MAX_ROWS, Math.floor(entry.contentRect.height / least))))
+    const panels = element?.closest<HTMLElement>("[data-panels]")
+    const section = element?.closest<HTMLElement>("[data-panel]")
+    if (!element || !panels || !section) return
+    const observer = new ResizeObserver(() => {
+      const pitch = Number.parseFloat(getComputedStyle(element).getPropertyValue("--row"))
+      const shared = mode !== "tab" && getComputedStyle(panels).gridTemplateColumns.split(" ").length === 1
+      const room = shared
+        ? panels.clientHeight * BOOK_SHARE - (section.offsetHeight - element.offsetHeight)
+        : element.clientHeight
+      const fit = Math.floor((room - spread * pitch) / (sides * pitch))
+      setRows(Math.max(1, Math.min(MAX_ROWS, fit)))
     })
-    observer.observe(element)
+    for (const target of [element, panels, section]) observer.observe(target)
     return () => observer.disconnect()
-  }, [ref, setRows])
+  }, [ref, setRows, sides, spread, mode])
 }
 
 export function Depth() {
@@ -87,31 +98,23 @@ export function Depth() {
 function Stacked({ layout, rows }: { layout: Layout; rows: number }) {
   const fit = useRef<HTMLDivElement>(null)
   const setHover = useSetAtom(hoverAtom)
-  useFitRows(fit)
+  useFitRows(fit, layout === "both" ? 2 : 1, 1)
   return (
     <>
       <Columns last="Total" />
-      {layout !== "bids" && (
-        <div
-          ref={fit}
-          data-testid="asks"
-          onPointerLeave={() => setHover(null)}
-          className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden"
-        >
-          <Levels side="asks" rows={rows} />
-        </div>
-      )}
-      <Spread />
-      {layout !== "asks" && (
-        <div
-          ref={layout === "bids" ? fit : undefined}
-          data-testid="bids"
-          onPointerLeave={() => setHover(null)}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          <Levels side="bids" rows={rows} />
-        </div>
-      )}
+      <div ref={fit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {layout !== "bids" && (
+          <div data-testid="asks" onPointerLeave={() => setHover(null)} className="flex shrink-0 flex-col-reverse">
+            <Levels side="asks" rows={rows} />
+          </div>
+        )}
+        <Spread />
+        {layout !== "asks" && (
+          <div data-testid="bids" onPointerLeave={() => setHover(null)} className="flex shrink-0 flex-col">
+            <Levels side="bids" rows={rows} />
+          </div>
+        )}
+      </div>
     </>
   )
 }
@@ -120,7 +123,7 @@ function Split({ rows }: { rows: number }) {
   const fit = useRef<HTMLDivElement>(null)
   const setHover = useSetAtom(hoverAtom)
   const unit = useUnit()
-  useFitRows(fit)
+  useFitRows(fit, 1, 0)
   return (
     <>
       <div className="grid h-6 shrink-0 grid-cols-2 items-center gap-x-0.5 text-xs text-muted-foreground">
@@ -133,16 +136,11 @@ function Split({ rows }: { rows: number }) {
           <span className="text-right">Total ({unit})</span>
         </span>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-x-0.5">
-        <div
-          ref={fit}
-          data-testid="bids"
-          onPointerLeave={() => setHover(null)}
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
+      <div ref={fit} className="grid min-h-0 flex-1 grid-cols-2 content-start gap-x-0.5 overflow-hidden">
+        <div data-testid="bids" onPointerLeave={() => setHover(null)} className="flex flex-col">
           <Levels side="bids" rows={rows} split />
         </div>
-        <div data-testid="asks" onPointerLeave={() => setHover(null)} className="flex min-h-0 flex-col overflow-hidden">
+        <div data-testid="asks" onPointerLeave={() => setHover(null)} className="flex flex-col">
           <Levels side="asks" rows={rows} split />
         </div>
       </div>
